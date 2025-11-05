@@ -1,0 +1,216 @@
+# Security Scripts Directory
+
+This directory contains security scanning and analysis scripts organized by platform.
+
+## 📁 Directory Structure
+
+```
+scripts/
+├── bash/           # Shell scripts for Linux/macOS/WSL (31 scripts)
+├── powershell/     # PowerShell scripts for Windows (9 scripts)
+└── README.md       # This file
+```
+
+## 🐧 Bash Scripts (`bash/`)
+
+**Location**: `./bash/`
+
+**Platform**: Linux, macOS, WSL (Windows Subsystem for Linux), Git Bash
+
+**Total Scripts**: 31
+
+### Usage
+```bash
+cd bash
+./script-name.sh
+```
+
+### Available Scripts
+- Security scanners (Trivy, Grype, Xeol, Checkov, ClamAV, TruffleHog, etc.)
+- Analysis tools (analyze-* scripts)
+- Management utilities
+- AWS ECR authentication
+- Dashboard management
+- Complete security scan orchestration
+
+## 🪟 PowerShell Scripts (`powershell/`)
+
+**Location**: `./powershell/`
+
+**Platform**: Windows (PowerShell 5.1+)
+
+**Total Scripts**: 9 (converted from bash)
+
+**Conversion Progress**: 25.8% complete
+
+### Usage
+```powershell
+cd powershell
+.\script-name.ps1
+```
+
+### Available Scripts
+- `open-dashboard.ps1` - Opens security dashboard
+- `force-refresh-dashboard.ps1` - Refreshes dashboard with cache busting
+- `test-desktop-default.ps1` - Tests default behavior
+- `demo-portable-scanner.ps1` - Scanner demonstration
+- `run-clamav-scan.ps1` - Antivirus scanning
+- `run-trufflehog-scan.ps1` - Secret detection
+- `analyze-clamav-results.ps1` - ClamAV results analysis
+- `create-stub-dependencies.ps1` - Helm stub creation
+- `Convert-AllScripts.ps1` - Conversion tracker tool
+
+### Documentation
+See `./powershell/` directory for:
+- `QUICK-START-WINDOWS.md` - Getting started guide
+- `README-PowerShell-Conversion.md` - Conversion guide
+- `CONVERSION-STATUS.md` - Conversion progress
+- `CONVERSION-SUMMARY.md` - Project overview
+
+## 🚀 Quick Start
+
+### For Windows Users
+
+**Option 1: Use PowerShell Scripts** (Recommended for converted scripts)
+```powershell
+cd powershell
+.\open-dashboard.ps1
+.\run-clamav-scan.ps1
+```
+
+**Option 2: Use Bash Scripts** (For unconverted scripts)
+```bash
+# Using Git Bash or WSL
+cd bash
+./run-trivy-scan.sh
+./run-grype-scan.sh
+```
+
+### For Linux/macOS Users
+
+```bash
+cd bash
+./run-complete-security-scan.sh
+./open-dashboard.sh
+```
+
+## 📊 Script Categories
+
+### Security Scanners
+- **ClamAV** - Antivirus/malware scanning
+- **TruffleHog** - Secret detection
+- **Trivy** - Container vulnerability scanning
+- **Grype** - Vulnerability detection with SBOM
+- **Xeol** - End-of-life software detection
+- **Checkov** - Infrastructure-as-Code security
+- **SonarQube** - Code quality analysis
+
+### Analysis Tools
+- Result analyzers for each scanner
+- Report consolidation
+- Dashboard generation
+
+### Management Tools
+- Dashboard management
+- Helm dependency resolution
+- AWS ECR authentication
+- Portable app scanner
+
+## 🔄 Platform-Specific Notes
+
+### Windows (PowerShell)
+- Requires PowerShell 5.1 or later
+- May need to set execution policy:
+  ```powershell
+  Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+  ```
+- Docker Desktop for Windows required for scanners
+
+### Linux/macOS/WSL (Bash)
+- Requires bash shell
+- Docker required for most scanners
+- Some scripts may require additional tools (helm, aws-cli, etc.)
+
+## 📝 Output Directories
+
+Scan results are saved in their respective directories (created in parent directory):
+- `../clamav-reports/`
+- `../trufflehog-reports/`
+- `../trivy-reports/`
+- `../grype-reports/`
+- `../xeol-reports/`
+- `../checkov-reports/`
+- `../reports/security-reports/`
+
+## 🛠️ Prerequisites
+
+### All Platforms
+- Docker (Docker Desktop for Windows)
+- Git
+
+### Optional Tools
+- Helm (for Kubernetes chart scanning)
+- AWS CLI (for ECR authentication)
+- Node.js (for Node.js specific scanners)
+
+## 📚 Documentation
+
+### PowerShell Documentation
+Located in `./powershell/`:
+- Quick start guide
+- Conversion guide
+- Status tracking
+- Troubleshooting
+
+### General Documentation
+- See individual script headers for usage information
+- Run scripts with `--help` or `-h` for options
+
+## 🔗 Related Directories
+
+- `../reports/` - Consolidated security reports
+- `../chart/` - Helm charts for scanning
+- `../helm-packages/` - Helm build outputs
+
+## 💡 Tips
+
+1. **Check which platform you're on**:
+   ```powershell
+   # PowerShell
+   $PSVersionTable.PSVersion
+   ```
+   ```bash
+   # Bash
+   echo $SHELL
+   ```
+
+2. **Use the conversion tracker** (PowerShell):
+   ```powershell
+   cd powershell
+   .\Convert-AllScripts.ps1
+   ```
+
+3. **Run complete scans**:
+   ```bash
+   # Bash
+   cd bash
+   ./run-complete-security-scan.sh
+   ```
+
+4. **View results**:
+   ```powershell
+   # PowerShell
+   cd powershell
+   .\open-dashboard.ps1
+   ```
+
+## 🎯 Next Steps
+
+1. Navigate to the appropriate directory for your platform
+2. Review the available scripts
+3. Run your first security scan
+4. View the dashboard to see results
+
+---
+
+**Note**: The PowerShell scripts are conversions of the bash scripts. Not all bash scripts have been converted yet. Use the bash versions for any scripts not yet available in PowerShell.
