@@ -8,11 +8,11 @@ $YELLOW = "Yellow"
 $WHITE = "White"
 
 Write-Host "============================================" -ForegroundColor $WHITE
-Write-Host "🎯 Portable Scanner - Desktop Default Test" -ForegroundColor $WHITE
+Write-Host "   Portable Scanner - Desktop Default Test" -ForegroundColor $WHITE
 Write-Host "============================================" -ForegroundColor $WHITE
 Write-Host ""
 
-Write-Host "📋 Testing new Desktop directory default behavior..." -ForegroundColor $BLUE
+Write-Host "   Testing new Desktop directory default behavior..." -ForegroundColor $BLUE
 Write-Host ""
 
 Write-Host "Test 1: Help command" -ForegroundColor $YELLOW
@@ -47,12 +47,12 @@ Receive-Job $Job
 Remove-Job $Job -Force -ErrorAction SilentlyContinue
 
 Write-Host ""
-Write-Host "✅ Desktop Default Enhancement Working!" -ForegroundColor $GREEN
+Write-Host "  Desktop Default Enhancement Working!" -ForegroundColor $GREEN
 Write-Host ""
-Write-Host "💡 Usage Examples:" -ForegroundColor $BLUE
-Write-Host "• .\portable-app-scanner.ps1                    → Full scan of Desktop"
-Write-Host "• .\portable-app-scanner.ps1 quick             → Quick scan of Desktop"
-Write-Host "• .\portable-app-scanner.ps1 secrets-only      → Secrets scan of Desktop"
-Write-Host "• .\portable-app-scanner.ps1 C:\path\to\app    → Scan specific directory"
+Write-Host "   Usage Examples:" -ForegroundColor $BLUE
+Write-Host "  .\portable-app-scanner.ps1                      Full scan of Desktop"
+Write-Host "  .\portable-app-scanner.ps1 quick               Quick scan of Desktop"
+Write-Host "  .\portable-app-scanner.ps1 secrets-only        Secrets scan of Desktop"
+Write-Host "  .\portable-app-scanner.ps1 C:\path\to\app      Scan specific directory"
 Write-Host ""
 Write-Host "============================================" -ForegroundColor $WHITE

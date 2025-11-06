@@ -49,12 +49,12 @@ Write-Host ""
 
 # Check if Docker is available
 if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-    Write-Host "❌ Docker is not installed or not in PATH" -ForegroundColor $RED
+    Write-Host "  Docker is not installed or not in PATH" -ForegroundColor $RED
     Write-Host "Docker is required to run Checkov scans"
     exit 1
 }
 
-Write-Host "🐳 Docker and Checkov Information:" -ForegroundColor $BLUE
+Write-Host "   Docker and Checkov Information:" -ForegroundColor $BLUE
 Write-Host "Docker version:"
 docker --version
 Write-Host "Pulling Checkov image..."
@@ -63,12 +63,12 @@ Write-Host ""
 
 # Check if chart directory exists
 if (-not (Test-Path $ChartDir)) {
-    Write-Host "⚠️  Chart directory not found: $ChartDir" -ForegroundColor $YELLOW
-    Write-Host "🔄 Scanning project directory for IaC files instead..." -ForegroundColor $CYAN
+    Write-Host "    Chart directory not found: $ChartDir" -ForegroundColor $YELLOW
+    Write-Host "   Scanning project directory for IaC files instead..." -ForegroundColor $CYAN
     Write-Host ""
     
     # Scan the entire project directory for various IaC files
-    Write-Host "📋 Scanning for:" -ForegroundColor $CYAN
+    Write-Host "   Scanning for:" -ForegroundColor $CYAN
     Write-Host "  - Dockerfiles"
     Write-Host "  - Kubernetes YAML files"
     Write-Host "  - Docker Compose files"
@@ -80,12 +80,12 @@ if (-not (Test-Path $ChartDir)) {
     $yamlFiles = Get-ChildItem -Path $TargetScanDir -Include "*.yaml","*.yml" -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.DirectoryName -notmatch "node_modules|\.git" }
     
     if ($dockerfiles.Count -gt 0 -or $yamlFiles.Count -gt 0) {
-        Write-Host "✅ Found scannable files:" -ForegroundColor $GREEN
+        Write-Host "  Found scannable files:" -ForegroundColor $GREEN
         if ($dockerfiles.Count -gt 0) {
-            Write-Host "  📄 Dockerfiles: $($dockerfiles.Count)"
+            Write-Host "     Dockerfiles: $($dockerfiles.Count)"
         }
         if ($yamlFiles.Count -gt 0) {
-            Write-Host "  📄 YAML files: $($yamlFiles.Count)"
+            Write-Host "     YAML files: $($yamlFiles.Count)"
         }
         Write-Host ""
         
@@ -93,8 +93,8 @@ if (-not (Test-Path $ChartDir)) {
         $ScanTarget = $TargetScanDir
         $ScanType = "directory"
     } else {
-        Write-Host "⚠️  No IaC files found in project directory" -ForegroundColor $YELLOW
-        Write-Host "💡 Skipping Checkov scan - no scannable files available" -ForegroundColor $YELLOW
+        Write-Host "    No IaC files found in project directory" -ForegroundColor $YELLOW
+        Write-Host "   Skipping Checkov scan - no scannable files available" -ForegroundColor $YELLOW
         # Create a dummy results file
         $dummyResult = @{
             passed = 0
@@ -106,16 +106,16 @@ if (-not (Test-Path $ChartDir)) {
             scan_status = "no_iac_files_found"
         } | ConvertTo-Json
         $dummyResult | Out-File -FilePath $ResultsFile -Encoding UTF8
-        Write-Host "✅ Checkov scan completed with fallback result" -ForegroundColor $GREEN
+        Write-Host "  Checkov scan completed with fallback result" -ForegroundColor $GREEN
         exit 0
     }
 } else {
-    Write-Host "✅ Chart directory found: $ChartDir" -ForegroundColor $GREEN
+    Write-Host "  Chart directory found: $ChartDir" -ForegroundColor $GREEN
 }
 
 # Skip Helm steps if we're doing a directory scan
 if ($ScanType -ne "directory") {
-    Write-Host "🔍 Step 1: Helm Dependency Resolution & Template Rendering" -ForegroundColor $CYAN
+    Write-Host "   Step 1: Helm Dependency Resolution & Template Rendering" -ForegroundColor $CYAN
     Write-Host "================================"
     Write-Host ""
 
@@ -123,14 +123,14 @@ if ($ScanType -ne "directory") {
     $HelmCmd = "helm"
     $DockerHelm = $false
     if (-not (Get-Command helm -ErrorAction SilentlyContinue)) {
-        Write-Host "⚠️  Using Docker-based Helm for template rendering" -ForegroundColor $YELLOW
+        Write-Host "    Using Docker-based Helm for template rendering" -ForegroundColor $YELLOW
         $DockerHelm = $true
     } else {
-        Write-Host "✅ Using local Helm installation" -ForegroundColor $GREEN
+        Write-Host "  Using local Helm installation" -ForegroundColor $GREEN
     }
 } else {
     # For directory scans, skip Helm processing
-    Write-Host "🔍 Step 1: Preparing directory scan" -ForegroundColor $CYAN
+    Write-Host "   Step 1: Preparing directory scan" -ForegroundColor $CYAN
     Write-Host "================================"
     Write-Host "Skipping Helm processing - scanning project files directly"
     Write-Host ""
@@ -148,40 +148,40 @@ if ($ScanType -ne "directory") {
     if (Test-Path (Join-Path $ChartDir "Chart.yaml")) {
     $chartContent = Get-Content (Join-Path $ChartDir "Chart.yaml") -Raw
     if ($chartContent -match "dependencies:") {
-        Write-Host "⚠️  Chart has dependencies - attempting to resolve..." -ForegroundColor $YELLOW
+        Write-Host "    Chart has dependencies - attempting to resolve..." -ForegroundColor $YELLOW
         Write-Host "Dependencies found in Chart.yaml"
         
         if (-not $DockerHelm) {
-            Write-Host "📦 Adding public Helm repositories..." -ForegroundColor $CYAN
+            Write-Host "   Adding public Helm repositories..." -ForegroundColor $CYAN
             helm repo add bitnami https://charts.bitnami.com/bitnami 2>$null
             helm repo update 2>$null
             
-            Write-Host "📦 Attempting to download dependencies..." -ForegroundColor $CYAN
+            Write-Host "   Attempting to download dependencies..." -ForegroundColor $CYAN
             Push-Location $ChartDir
             $depJob = Start-Job -ScriptBlock { helm dependency update 2>$null }
             $depJob | Wait-Job -Timeout $DependencyTimeout | Out-Null
             
             if ($depJob.State -eq "Completed") {
-                Write-Host "✅ Dependencies resolved successfully" -ForegroundColor $GREEN
+                Write-Host "  Dependencies resolved successfully" -ForegroundColor $GREEN
                 $DependencySuccess = $true
             } else {
                 Stop-Job $depJob
-                Write-Host "⚠️  Dependencies failed or timed out" -ForegroundColor $YELLOW
-                Write-Host "💡 Continuing with fallback scan" -ForegroundColor $CYAN
+                Write-Host "    Dependencies failed or timed out" -ForegroundColor $YELLOW
+                Write-Host "   Continuing with fallback scan" -ForegroundColor $CYAN
             }
             Remove-Job $depJob -Force
             Pop-Location
         }
     } else {
-        Write-Host "✅ No dependencies found in Chart.yaml" -ForegroundColor $GREEN
+        Write-Host "  No dependencies found in Chart.yaml" -ForegroundColor $GREEN
         $DependencySuccess = $true
     }
 } else {
-    Write-Host "❌ Chart.yaml not found" -ForegroundColor $RED
+    Write-Host "  Chart.yaml not found" -ForegroundColor $RED
 }
 
 # Try to render templates
-Write-Host "🔍 Attempting to render Helm templates..." -ForegroundColor $CYAN
+Write-Host "   Attempting to render Helm templates..." -ForegroundColor $CYAN
 
 if (Get-Command helm -ErrorAction SilentlyContinue) {
     Write-Host "Using local Helm for template rendering..."
@@ -190,7 +190,7 @@ if (Get-Command helm -ErrorAction SilentlyContinue) {
         $ResourceCount = (Select-String -Path $RenderedTemplates -Pattern "^kind:" | Measure-Object).Count
         
         if ($ResourceCount -gt 0) {
-            Write-Host "✅ Templates rendered successfully" -ForegroundColor $GREEN
+            Write-Host "  Templates rendered successfully" -ForegroundColor $GREEN
             Write-Host "Rendered Kubernetes resources: $ResourceCount"
             $ScanTarget = $RenderedTemplates
             $ScanType = "kubernetes"
@@ -202,30 +202,30 @@ if (Get-Command helm -ErrorAction SilentlyContinue) {
 }
 
 if (-not $TemplateSuccess) {
-    Write-Host "⚠️  Template rendering failed or no resources found" -ForegroundColor $YELLOW
+    Write-Host "    Template rendering failed or no resources found" -ForegroundColor $YELLOW
     Write-Host "This is common with charts that use private/library charts without authentication"
-    Write-Host "🔄 Falling back to chart configuration analysis..." -ForegroundColor $CYAN
+    Write-Host "   Falling back to chart configuration analysis..." -ForegroundColor $CYAN
     
     $ScanTarget = $ChartDir
     $ScanType = "helm"
     
     if (Test-Path (Join-Path $ChartDir "values.yaml")) {
-        Write-Host "✅ Found values.yaml for security analysis" -ForegroundColor $GREEN
+        Write-Host "  Found values.yaml for security analysis" -ForegroundColor $GREEN
         $valuesSize = (Get-Item (Join-Path $ChartDir "values.yaml")).Length
         Write-Host "Chart values file size: $valuesSize bytes"
     } else {
-        Write-Host "⚠️  No values.yaml found in chart directory" -ForegroundColor $YELLOW
+        Write-Host "    No values.yaml found in chart directory" -ForegroundColor $YELLOW
     }
     
-    Write-Host "📋 Available for analysis:" -ForegroundColor $CYAN
+    Write-Host "   Available for analysis:" -ForegroundColor $CYAN
     Get-ChildItem -Path $ChartDir -Include *.yaml,*.yml -Recurse | Select-Object -First 10 | ForEach-Object {
-        Write-Host "  📄 $($_.Name) ($($_.Length) bytes)"
+        Write-Host "     $($_.Name) ($($_.Length) bytes)"
     }
     }
 }
 Write-Host ""
 
-Write-Host "🛡️  Step 2: Checkov Security Scan" -ForegroundColor $BLUE
+Write-Host "     Step 2: Checkov Security Scan" -ForegroundColor $BLUE
 Write-Host "================================="
 Write-Host "Scan target: $ScanTarget"
 Write-Host "Scan type: $ScanType"
@@ -238,7 +238,7 @@ if ($ScanType -eq "directory") {
     $targetAbsPath = (Resolve-Path $TargetScanDir).Path
     $outputAbsPath = (Resolve-Path $OutputDir).Path
     
-    Write-Host "🔍 Running comprehensive IaC scan..."
+    Write-Host "   Running comprehensive IaC scan..."
     docker run --rm `
         -v "${targetAbsPath}:/repo" `
         -v "${outputAbsPath}:/output" `
@@ -255,7 +255,7 @@ if ($ScanType -eq "directory") {
     
     # Scan values.yaml if it exists
     if (Test-Path (Join-Path $ChartDir "values.yaml")) {
-        Write-Host "🔍 Scanning values.yaml for security configurations..."
+        Write-Host "   Scanning values.yaml for security configurations..."
         $targetAbsPath = (Resolve-Path $TargetScanDir).Path
         $outputAbsPath = (Resolve-Path $OutputDir).Path
         
@@ -271,7 +271,7 @@ if ($ScanType -eq "directory") {
     }
     
     # Scan entire chart directory
-    Write-Host "🔍 Scanning chart directory for security configurations..."
+    Write-Host "   Scanning chart directory for security configurations..."
     $targetAbsPath = (Resolve-Path $TargetScanDir).Path
     $outputAbsPath = (Resolve-Path $OutputDir).Path
     
@@ -307,14 +307,14 @@ Write-Host "============================================"
 
 # Parse results
 if (Test-Path $ResultsFile) {
-    Write-Host "✅ Checkov scan completed successfully!" -ForegroundColor $GREEN
+    Write-Host "  Checkov scan completed successfully!" -ForegroundColor $GREEN
     Write-Host "============================================"
     
     try {
         $results = Get-Content $ResultsFile -Raw | ConvertFrom-Json
         $summary = $results.summary
         
-        Write-Host "📊 Scan Summary:"
+        Write-Host "   Scan Summary:"
         Write-Host "================"
         Write-Host "Passed checks: $($summary.passed)"
         Write-Host "Failed checks: $($summary.failed)"
@@ -323,46 +323,46 @@ if (Test-Path $ResultsFile) {
         Write-Host ""
         
         if ($summary.failed -gt 0) {
-            Write-Host "⚠️  $($summary.failed) security issues found" -ForegroundColor $YELLOW
+            Write-Host "    $($summary.failed) security issues found" -ForegroundColor $YELLOW
             Write-Host "Review detailed results for specific recommendations"
         } else {
-            Write-Host "🎉 No security issues detected!" -ForegroundColor $GREEN
+            Write-Host "   No security issues detected!" -ForegroundColor $GREEN
         }
     } catch {
-        Write-Host "📊 Scan Summary:"
+        Write-Host "   Scan Summary:"
         Write-Host "================"
         Write-Host "Results saved to: $ResultsFile"
-        Write-Host "✅ Scan completed - review results file" -ForegroundColor $GREEN
+        Write-Host "  Scan completed - review results file" -ForegroundColor $GREEN
     }
 } elseif ($CheckovExitCode -eq 0) {
-    Write-Host "✅ Checkov scan completed successfully!" -ForegroundColor $GREEN
-    Write-Host "🎉 No security issues detected!"
+    Write-Host "  Checkov scan completed successfully!" -ForegroundColor $GREEN
+    Write-Host "   No security issues detected!"
     Write-Host "============================================"
 } else {
-    Write-Host "❌ Checkov scan failed" -ForegroundColor $RED
+    Write-Host "  Checkov scan failed" -ForegroundColor $RED
     Write-Host "============================================"
     Write-Host "Exit code: $CheckovExitCode"
     Write-Host "Check the scan log for details"
 }
 
 Write-Host ""
-Write-Host "🔧 Security Recommendations:" -ForegroundColor $BLUE
+Write-Host "   Security Recommendations:" -ForegroundColor $BLUE
 Write-Host "============================="
 
 if (Test-Path $ResultsFile) {
-    Write-Host "✅ Review detailed security findings in: $ResultsFile"
-    Write-Host "✅ Address high and medium severity issues first"
-    Write-Host "✅ Consider implementing security contexts for containers"
-    Write-Host "✅ Ensure resource limits are defined for all containers"
-    Write-Host "✅ Review network policies and service configurations"
+    Write-Host "  Review detailed security findings in: $ResultsFile"
+    Write-Host "  Address high and medium severity issues first"
+    Write-Host "  Consider implementing security contexts for containers"
+    Write-Host "  Ensure resource limits are defined for all containers"
+    Write-Host "  Review network policies and service configurations"
 } else {
-    Write-Host "⚠️  No results file generated - check scan configuration"
-    Write-Host "✅ Verify chart templates are valid and accessible"
-    Write-Host "✅ Check Docker and Checkov image availability"
+    Write-Host "    No results file generated - check scan configuration"
+    Write-Host "  Verify chart templates are valid and accessible"
+    Write-Host "  Check Docker and Checkov image availability"
 }
 
 Write-Host ""
-Write-Host "📁 Output Files:" -ForegroundColor $BLUE
+Write-Host "   Output Files:" -ForegroundColor $BLUE
 Write-Host "================"
 Write-Host "Scan log: $ScanLog"
 if (Test-Path $ResultsFile) {

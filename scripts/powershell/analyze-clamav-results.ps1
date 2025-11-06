@@ -11,12 +11,12 @@ Write-Host ""
 
 # Check if scan log exists
 if (-not (Test-Path $ScanLog)) {
-    Write-Host "❌ No scan log found at $ScanLog" -ForegroundColor Red
+    Write-Host "  No scan log found at $ScanLog" -ForegroundColor Red
     Write-Host "Run '.\run-clamav-scan.ps1' first to generate results."
     exit 1
 }
 
-Write-Host "📊 Scan Overview:"
+Write-Host "   Scan Overview:"
 Write-Host "=================="
 
 # Extract key metrics from the scan summary
@@ -41,18 +41,18 @@ if ($LogContent -match "SCAN SUMMARY") {
     
     # Security status
     if ([int]$InfectedFiles -eq 0) {
-        Write-Host "🎉 Security Status: CLEAN" -ForegroundColor Green
-        Write-Host "✅ No malware or viruses detected" -ForegroundColor Green
+        Write-Host "   Security Status: CLEAN" -ForegroundColor Green
+        Write-Host "  No malware or viruses detected" -ForegroundColor Green
     } else {
-        Write-Host "🚨 Security Status: THREATS DETECTED" -ForegroundColor Red
-        Write-Host "⚠️  Infected Files Found: $InfectedFiles" -ForegroundColor Yellow
+        Write-Host "   Security Status: THREATS DETECTED" -ForegroundColor Red
+        Write-Host "    Infected Files Found: $InfectedFiles" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "⚠️  Unable to parse scan summary from log file" -ForegroundColor Yellow
+    Write-Host "    Unable to parse scan summary from log file" -ForegroundColor Yellow
 }
 
 Write-Host ""
-Write-Host "📁 Scan Coverage Analysis:"
+Write-Host "   Scan Coverage Analysis:"
 Write-Host "=========================="
 
 # Analyze what types of files were scanned
@@ -76,25 +76,25 @@ if (Test-Path $ScanLog) {
 }
 
 Write-Host ""
-Write-Host "🔍 Threat Analysis:"
+Write-Host "   Threat Analysis:"
 Write-Host "==================="
 
 if ((Test-Path $InfectedLog) -and ((Get-Item $InfectedLog).Length -gt 0)) {
-    Write-Host "⚠️  INFECTED FILES DETECTED:" -ForegroundColor Red
+    Write-Host "    INFECTED FILES DETECTED:" -ForegroundColor Red
     Write-Host "----------------------------"
     Get-Content $InfectedLog
     
     Write-Host ""
-    Write-Host "🛡️  Recommended Actions:" -ForegroundColor Yellow
+    Write-Host "     Recommended Actions:" -ForegroundColor Yellow
     Write-Host "- Quarantine or delete infected files immediately"
     Write-Host "- Run a full system scan"
     Write-Host "- Update antivirus definitions"
     Write-Host "- Check file sources and download history"
     Write-Host "- Consider scanning backup systems"
 } else {
-    Write-Host "✅ No threats detected in this scan" -ForegroundColor Green
+    Write-Host "  No threats detected in this scan" -ForegroundColor Green
     Write-Host ""
-    Write-Host "🛡️  Security Recommendations:" -ForegroundColor Cyan
+    Write-Host "     Security Recommendations:" -ForegroundColor Cyan
     Write-Host "- Continue regular scanning schedule"
     Write-Host "- Keep ClamAV definitions updated"
     Write-Host "- Monitor file uploads and downloads"
@@ -102,7 +102,7 @@ if ((Test-Path $InfectedLog) -and ((Get-Item $InfectedLog).Length -gt 0)) {
 }
 
 Write-Host ""
-Write-Host "📈 Scan Performance:"
+Write-Host "   Scan Performance:"
 Write-Host "===================="
 
 if (Test-Path $ScanLog) {
@@ -112,7 +112,7 @@ if (Test-Path $ScanLog) {
 }
 
 Write-Host ""
-Write-Host "📊 Summary Statistics:"
+Write-Host "   Summary Statistics:"
 Write-Host "======================"
 
 if (Test-Path $ScanLog) {

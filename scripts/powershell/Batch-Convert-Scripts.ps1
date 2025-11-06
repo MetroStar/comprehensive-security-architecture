@@ -44,17 +44,17 @@ foreach ($script in $ScriptsToConvert) {
     $shFile = Join-Path $BashDir "$($script.Name).sh"
     
     if (Test-Path $ps1File) {
-        Write-Host "⏭️  Skipping $($script.Name) (already exists)" -ForegroundColor Yellow
+        Write-Host "    Skipping $($script.Name) (already exists)" -ForegroundColor Yellow
         $Skipped++
         continue
     }
     
     if (-not (Test-Path $shFile)) {
-        Write-Host "⚠️  Warning: $($script.Name).sh not found" -ForegroundColor Yellow
+        Write-Host "    Warning: $($script.Name).sh not found" -ForegroundColor Yellow
         continue
     }
     
-    Write-Host "🔄 Converting $($script.Name)..." -ForegroundColor Cyan
+    Write-Host "   Converting $($script.Name)..." -ForegroundColor Cyan
     
     # Create a basic PowerShell template
     $template = @"
@@ -97,7 +97,7 @@ New-Item -ItemType Directory -Force -Path `$OutputDir | Out-Null
 # TODO: Implement full conversion from bash script
 # Original bash script: $shFile
 
-Write-Host "⚠️  This script is a template and needs full implementation" -ForegroundColor Yellow
+Write-Host "    This script is a template and needs full implementation" -ForegroundColor Yellow
 Write-Host "Original bash script: $($script.Name).sh" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "For now, you can use the bash version:" -ForegroundColor Yellow
@@ -109,7 +109,7 @@ Write-Host "Script execution completed (template mode)" -ForegroundColor Green
 "@
     
     $template | Out-File -FilePath $ps1File -Encoding UTF8
-    Write-Host "✅ Created template: $($script.Name).ps1" -ForegroundColor Green
+    Write-Host "  Created template: $($script.Name).ps1" -ForegroundColor Green
     $Converted++
 }
 
@@ -121,7 +121,7 @@ Write-Host "Templates created: $Converted" -ForegroundColor Green
 Write-Host "Already existed: $Skipped" -ForegroundColor Yellow
 Write-Host "Total scripts: $($ScriptsToConvert.Count)" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "✅ Batch conversion complete!" -ForegroundColor Green
+Write-Host "  Batch conversion complete!" -ForegroundColor Green
 Write-Host ""
 Write-Host "Next steps:" -ForegroundColor Yellow
 Write-Host "1. Review generated templates in: $ScriptDir"

@@ -12,7 +12,7 @@ $CYAN = "Cyan"
 $ChartDir = if ($env:TARGET_DIR) { Join-Path $env:TARGET_DIR "chart" } else { Join-Path (Get-Location) "chart" }
 
 Write-Host "============================================"
-Write-Host "🔧 Helm Dependency Stubbing Tool" -ForegroundColor $BLUE
+Write-Host "   Helm Dependency Stubbing Tool" -ForegroundColor $BLUE
 Write-Host "============================================"
 Write-Host "Chart Directory: $ChartDir"
 Write-Host ""
@@ -24,7 +24,7 @@ New-Item -ItemType Directory -Force -Path (Join-Path $ChartDir "charts") | Out-N
 $StubChartDir = Join-Path $ChartDir "charts\advana-library"
 New-Item -ItemType Directory -Force -Path (Join-Path $StubChartDir "templates") | Out-Null
 
-Write-Host "📦 Creating stub advana-library chart..." -ForegroundColor $CYAN
+Write-Host "   Creating stub advana-library chart..." -ForegroundColor $CYAN
 
 # Create minimal Chart.yaml for stub
 @"
@@ -103,10 +103,10 @@ spec:
 
 $HelpersContent | Out-File -FilePath (Join-Path $StubChartDir "templates\_helpers.tpl") -Encoding UTF8
 
-Write-Host "✅ Stub advana-library chart created" -ForegroundColor $GREEN
+Write-Host "  Stub advana-library chart created" -ForegroundColor $GREEN
 
 # Test template rendering with stub
-Write-Host "🧪 Testing template rendering with stub..." -ForegroundColor $CYAN
+Write-Host "   Testing template rendering with stub..." -ForegroundColor $CYAN
 Push-Location $ChartDir
 
 if (Get-Command helm -ErrorAction SilentlyContinue) {
@@ -117,14 +117,14 @@ if (Get-Command helm -ErrorAction SilentlyContinue) {
     
     if ($LASTEXITCODE -eq 0) {
         $ResourceCount = (Select-String -Path $TestRenderPath -Pattern "^kind:" -AllMatches).Matches.Count
-        Write-Host "✅ Template rendering successful with stub" -ForegroundColor $GREEN
+        Write-Host "  Template rendering successful with stub" -ForegroundColor $GREEN
         Write-Host "Generated Kubernetes resources: $ResourceCount"
         
         Write-Host ""
         Write-Host "Rendered resource types:"
         Select-String -Path $TestRenderPath -Pattern "^kind:" | ForEach-Object { $_.Line } | Group-Object | Select-Object Count, Name
     } else {
-        Write-Host "⚠️  Template rendering still failed" -ForegroundColor $YELLOW
+        Write-Host "    Template rendering still failed" -ForegroundColor $YELLOW
         Write-Host "Check ..\helm-dependency-resolution\stub-test-render.yaml for errors"
     }
 } else {
@@ -133,7 +133,7 @@ if (Get-Command helm -ErrorAction SilentlyContinue) {
     
     if ($LASTEXITCODE -eq 0) {
         $ResourceCount = (Select-String -Path "..\helm-dependency-resolution\stub-test-render.yaml" -Pattern "^kind:" -AllMatches).Matches.Count
-        Write-Host "✅ Template rendering successful with stub" -ForegroundColor $GREEN
+        Write-Host "  Template rendering successful with stub" -ForegroundColor $GREEN
         Write-Host "Generated Kubernetes resources: $ResourceCount"
     }
 }
@@ -141,10 +141,10 @@ if (Get-Command helm -ErrorAction SilentlyContinue) {
 Pop-Location
 
 Write-Host ""
-Write-Host "📊 Stub Chart Summary" -ForegroundColor $CYAN
+Write-Host "   Stub Chart Summary" -ForegroundColor $CYAN
 Write-Host "========================"
 Write-Host "Stub chart location: $StubChartDir"
 Write-Host "This stub provides basic implementations of common template functions"
 Write-Host "You can now run Checkov security scans on the rendered templates"
 Write-Host ""
-Write-Host "🎯 Stub dependencies created successfully!" -ForegroundColor $GREEN
+Write-Host "   Stub dependencies created successfully!" -ForegroundColor $GREEN

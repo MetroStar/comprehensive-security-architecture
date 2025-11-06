@@ -27,12 +27,12 @@ $SonarEnvFiles = @(
     (Join-Path $env:USERPROFILE ".env.sonar")
 )
 
-Write-Host "🔍 Searching for SonarQube configuration..." -ForegroundColor $CYAN
+Write-Host "   Searching for SonarQube configuration..." -ForegroundColor $CYAN
 $SonarConfigFound = $false
 
 foreach ($envFile in $SonarEnvFiles) {
     if (Test-Path $envFile) {
-        Write-Host "✅ Found SonarQube config: $envFile" -ForegroundColor $GREEN
+        Write-Host "  Found SonarQube config: $envFile" -ForegroundColor $GREEN
         Write-Host "Loading environment variables from $envFile..."
         
         # Load environment variables from file
@@ -49,7 +49,7 @@ foreach ($envFile in $SonarEnvFiles) {
 }
 
 if (-not $SonarConfigFound) {
-    Write-Host "⚠️  No .env.sonar file found in:" -ForegroundColor $YELLOW
+    Write-Host "    No .env.sonar file found in:" -ForegroundColor $YELLOW
     foreach ($envFile in $SonarEnvFiles) {
         Write-Host "   - $envFile"
     }
@@ -62,9 +62,9 @@ $ProjectKey = $env:SONAR_PROJECT_KEY
 # Check if token is set
 if (-not $env:SONAR_TOKEN) {
     Write-Host "============================================"
-    Write-Host "⚠️  SonarQube Analysis - Authentication Required" -ForegroundColor $YELLOW
+    Write-Host "    SonarQube Analysis - Authentication Required" -ForegroundColor $YELLOW
     Write-Host "============================================"
-    Write-Host "🔐 SonarQube requires authentication for code quality analysis"
+    Write-Host "   SonarQube requires authentication for code quality analysis"
     Write-Host ""
     Write-Host "Options:"
     Write-Host "  1) Set up SonarQube token (for complete analysis)"
@@ -75,7 +75,7 @@ if (-not $env:SONAR_TOKEN) {
     
     if ($SonarChoice -eq "1") {
         Write-Host ""
-        Write-Host "🔑 SonarQube Authentication Setup" -ForegroundColor $CYAN
+        Write-Host "   SonarQube Authentication Setup" -ForegroundColor $CYAN
         Write-Host "================================="
         Write-Host ""
         Write-Host "Options:"
@@ -87,7 +87,7 @@ if (-not $env:SONAR_TOKEN) {
         
         if ($AuthChoice -eq "1") {
             Write-Host ""
-            Write-Host "🔑 Enter SonarQube credentials:" -ForegroundColor $CYAN
+            Write-Host "   Enter SonarQube credentials:" -ForegroundColor $CYAN
             
             # Prompt for Host URL
             if ([string]::IsNullOrWhiteSpace($SonarHostUrl)) {
@@ -134,21 +134,21 @@ if (-not $env:SONAR_TOKEN) {
             
             if ([string]::IsNullOrWhiteSpace($env:SONAR_TOKEN)) {
                 Write-Host ""
-                Write-Host "❌ No token provided - cannot proceed with SonarQube analysis" -ForegroundColor $RED
-                Write-Host "💡 Continuing with security pipeline without code quality analysis" -ForegroundColor $YELLOW
+                Write-Host "  No token provided - cannot proceed with SonarQube analysis" -ForegroundColor $RED
+                Write-Host "   Continuing with security pipeline without code quality analysis" -ForegroundColor $YELLOW
                 Write-Host ""
                 Write-Host "============================================" -ForegroundColor $GREEN
-                Write-Host "✅ SonarQube analysis skipped successfully!" -ForegroundColor $GREEN
+                Write-Host "  SonarQube analysis skipped successfully!" -ForegroundColor $GREEN
                 Write-Host "============================================" -ForegroundColor $GREEN
                 exit 0
             }
             
             Write-Host ""
-            Write-Host "✅ Credentials provided - proceeding with SonarQube analysis" -ForegroundColor $GREEN
+            Write-Host "  Credentials provided - proceeding with SonarQube analysis" -ForegroundColor $GREEN
             
         } elseif ($AuthChoice -eq "2") {
             Write-Host ""
-            Write-Host "📋 To create a permanent .env.sonar file:" -ForegroundColor $CYAN
+            Write-Host "   To create a permanent .env.sonar file:" -ForegroundColor $CYAN
             Write-Host ""
             Write-Host "1. Choose a location:"
             Write-Host "   - Project: $(Join-Path $RepoPath '.env.sonar')"
@@ -162,27 +162,27 @@ if (-not $env:SONAR_TOKEN) {
             Write-Host ""
             Write-Host "3. Re-run the analysis"
             Write-Host ""
-            Write-Host "❌ Exiting - please configure authentication and retry" -ForegroundColor $RED
+            Write-Host "  Exiting - please configure authentication and retry" -ForegroundColor $RED
             exit 1
         } else {
             Write-Host ""
-            Write-Host "❌ Invalid choice - exiting" -ForegroundColor $RED
+            Write-Host "  Invalid choice - exiting" -ForegroundColor $RED
             exit 1
         }
     } else {
         Write-Host ""
-        Write-Host "⏭️  Skipping SonarQube analysis - continuing security pipeline" -ForegroundColor $YELLOW
-        Write-Host "💡 Note: Code quality analysis will be limited without SonarQube" -ForegroundColor $YELLOW
+        Write-Host "    Skipping SonarQube analysis - continuing security pipeline" -ForegroundColor $YELLOW
+        Write-Host "   Note: Code quality analysis will be limited without SonarQube" -ForegroundColor $YELLOW
         Write-Host ""
         Write-Host "============================================" -ForegroundColor $GREEN
-        Write-Host "✅ SonarQube analysis skipped successfully!" -ForegroundColor $GREEN
+        Write-Host "  SonarQube analysis skipped successfully!" -ForegroundColor $GREEN
         Write-Host "============================================" -ForegroundColor $GREEN
         Write-Host ""
-        Write-Host "📊 Fallback Code Quality Summary:" -ForegroundColor $CYAN
+        Write-Host "   Fallback Code Quality Summary:" -ForegroundColor $CYAN
         Write-Host "=================================="
-        Write-Host "⚠️  SonarQube analysis skipped - no quality metrics available" -ForegroundColor $YELLOW
-        Write-Host "✅ Security pipeline continues with other layers" -ForegroundColor $GREEN
-        Write-Host "💡 For complete analysis, configure SonarQube authentication" -ForegroundColor $YELLOW
+        Write-Host "    SonarQube analysis skipped - no quality metrics available" -ForegroundColor $YELLOW
+        Write-Host "  Security pipeline continues with other layers" -ForegroundColor $GREEN
+        Write-Host "   For complete analysis, configure SonarQube authentication" -ForegroundColor $YELLOW
         Write-Host ""
         exit 0
     }
@@ -191,19 +191,19 @@ if (-not $env:SONAR_TOKEN) {
 # Prompt for missing configuration values
 if ([string]::IsNullOrWhiteSpace($SonarHostUrl)) {
     Write-Host ""
-    Write-Host "⚙️  SonarQube Host URL not configured" -ForegroundColor $YELLOW
+    Write-Host "    SonarQube Host URL not configured" -ForegroundColor $YELLOW
     $InputHostUrl = Read-Host "SonarQube Host URL (e.g., https://sonarqube.example.com)"
     if (-not [string]::IsNullOrWhiteSpace($InputHostUrl)) {
         $SonarHostUrl = $InputHostUrl
     } else {
-        Write-Host "❌ Error: SonarQube Host URL is required" -ForegroundColor $RED
+        Write-Host "  Error: SonarQube Host URL is required" -ForegroundColor $RED
         exit 1
     }
 }
 
 if ([string]::IsNullOrWhiteSpace($ProjectKey)) {
     Write-Host ""
-    Write-Host "⚙️  Project Key not configured" -ForegroundColor $YELLOW
+    Write-Host "    Project Key not configured" -ForegroundColor $YELLOW
     $InputProjectKey = Read-Host "Project Key/Name (e.g., my-project-name)"
     if (-not [string]::IsNullOrWhiteSpace($InputProjectKey)) {
         $ProjectKey = $InputProjectKey
@@ -224,24 +224,24 @@ Write-Host "Target directory: $RepoPath"
 $SourcesPath = $RepoPath
 
 if (Test-Path (Join-Path $RepoPath "frontend\package.json")) {
-    Write-Host "✅ Frontend directory found - running tests with coverage" -ForegroundColor $GREEN
+    Write-Host "  Frontend directory found - running tests with coverage" -ForegroundColor $GREEN
     Push-Location (Join-Path $RepoPath "frontend")
     npx vitest --run --coverage --exclude "**/App.test.tsx" 2>$null
     $testExitCode = $LASTEXITCODE
     if ($testExitCode -ne 0) {
-        Write-Host "⚠️  Some tests failed, but continuing with SonarQube analysis..." -ForegroundColor $YELLOW
-        Write-Host "💡 Note: Fix test failures for complete analysis" -ForegroundColor $YELLOW
+        Write-Host "    Some tests failed, but continuing with SonarQube analysis..." -ForegroundColor $YELLOW
+        Write-Host "   Note: Fix test failures for complete analysis" -ForegroundColor $YELLOW
     }
     Pop-Location
     $SourcesPath = Join-Path $RepoPath "frontend\src"
 } elseif (Test-Path (Join-Path $RepoPath "src")) {
-    Write-Host "✅ Source directory found - using src/ for analysis" -ForegroundColor $GREEN
+    Write-Host "  Source directory found - using src/ for analysis" -ForegroundColor $GREEN
     $SourcesPath = Join-Path $RepoPath "src"
 } elseif (Test-Path (Join-Path $RepoPath "package.json")) {
-    Write-Host "✅ Node.js project detected - using project root for analysis" -ForegroundColor $GREEN
+    Write-Host "  Node.js project detected - using project root for analysis" -ForegroundColor $GREEN
     $SourcesPath = $RepoPath
 } else {
-    Write-Host "⚠️  No standard project structure found - using target directory" -ForegroundColor $YELLOW
+    Write-Host "    No standard project structure found - using target directory" -ForegroundColor $YELLOW
     $SourcesPath = $RepoPath
 }
 
@@ -250,15 +250,15 @@ Write-Host "============================================" -ForegroundColor $WHIT
 Write-Host "Step 2: Running SonarQube analysis..." -ForegroundColor $WHITE
 Write-Host "============================================" -ForegroundColor $WHITE
 Write-Host ""
-Write-Host "📋 Configuration:" -ForegroundColor $CYAN
+Write-Host "   Configuration:" -ForegroundColor $CYAN
 Write-Host "   Project Key: $ProjectKey"
 Write-Host "   Host URL: $SonarHostUrl"
 Write-Host "   Sources: $SourcesPath"
 Write-Host "   Base Dir: $RepoPath"
 Write-Host "   Working from: $(Get-Location)"
 Write-Host ""
-Write-Host "🔄 Starting SonarQube scanner..." -ForegroundColor $BLUE
-Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor $BLUE
+Write-Host "   Starting SonarQube scanner..." -ForegroundColor $BLUE
+Write-Host "                                            " -ForegroundColor $BLUE
 
 # Run SonarQube scanner - don't capture output, let it stream
 npx sonarqube-scanner `
@@ -270,16 +270,16 @@ npx sonarqube-scanner `
 
 $scannerExitCode = $LASTEXITCODE
 
-Write-Host "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" -ForegroundColor $BLUE
+Write-Host "                                            " -ForegroundColor $BLUE
 
 if ($scannerExitCode -ne 0) {
     Write-Host ""
-    Write-Host "⚠️  SonarQube scanner completed with exit code: $scannerExitCode" -ForegroundColor $YELLOW
-    Write-Host "💡 This may indicate an error or warning - check output above" -ForegroundColor $YELLOW
+    Write-Host "    SonarQube scanner completed with exit code: $scannerExitCode" -ForegroundColor $YELLOW
+    Write-Host "   This may indicate an error or warning - check output above" -ForegroundColor $YELLOW
 } else {
     Write-Host ""
-    Write-Host "✅ SonarQube scanner completed successfully!" -ForegroundColor $GREEN
-    Write-Host "📊 View results at: $SonarHostUrl/dashboard?id=$ProjectKey" -ForegroundColor $CYAN
+    Write-Host "  SonarQube scanner completed successfully!" -ForegroundColor $GREEN
+    Write-Host "   View results at: $SonarHostUrl/dashboard?id=$ProjectKey" -ForegroundColor $CYAN
 }
 
 # Save local copy of test results
@@ -321,14 +321,14 @@ $ResultsJson = @{
 $ResultsFile = Join-Path $ReportsDir "sonar-analysis-results.json"
 $ResultsJson | Out-File -FilePath $ResultsFile -Encoding UTF8
 
-Write-Host "✅ Local test results saved to: $ResultsFile" -ForegroundColor $GREEN
+Write-Host "  Local test results saved to: $ResultsFile" -ForegroundColor $GREEN
 Write-Host ""
-Write-Host "📊 Test Summary:" -ForegroundColor $CYAN
+Write-Host "   Test Summary:" -ForegroundColor $CYAN
 Write-Host "=================="
-Write-Host "• Total Tests: 1,181"
-Write-Host "• Passed: 1,170"
-Write-Host "• Skipped: 11"
-Write-Host "• Coverage: 92.38%"
+Write-Host "  Total Tests: 1,181"
+Write-Host "  Passed: 1,170"
+Write-Host "  Skipped: 11"
+Write-Host "  Coverage: 92.38%"
 Write-Host ""
 
 Write-Host "Analysis complete! Check your SonarQube dashboard at $SonarHostUrl" -ForegroundColor $GREEN

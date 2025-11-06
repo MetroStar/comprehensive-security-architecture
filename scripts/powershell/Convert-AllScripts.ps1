@@ -14,7 +14,7 @@ $ShellScripts = Get-ChildItem -Path $ScriptDir -Filter "*.sh" | Sort-Object Name
 # Get all .ps1 files
 $PowerShellScripts = Get-ChildItem -Path $ScriptDir -Filter "*.ps1" | Sort-Object Name
 
-Write-Host "📊 Conversion Status:" -ForegroundColor Yellow
+Write-Host "   Conversion Status:" -ForegroundColor Yellow
 Write-Host "===================="
 Write-Host "Total Shell Scripts: $($ShellScripts.Count)"
 Write-Host "Total PowerShell Scripts: $($PowerShellScripts.Count)"
@@ -36,17 +36,17 @@ foreach ($sh in $ShellScripts) {
     }
 }
 
-Write-Host "✅ Converted Scripts ($($Converted.Count)):" -ForegroundColor Green
+Write-Host "  Converted Scripts ($($Converted.Count)):" -ForegroundColor Green
 Write-Host "========================"
 foreach ($script in $Converted) {
-    Write-Host "  ✓ $script" -ForegroundColor Green
+    Write-Host "    $script" -ForegroundColor Green
 }
 Write-Host ""
 
-Write-Host "⏳ Pending Conversions ($($NotConverted.Count)):" -ForegroundColor Yellow
+Write-Host "  Pending Conversions ($($NotConverted.Count)):" -ForegroundColor Yellow
 Write-Host "========================"
 foreach ($script in $NotConverted) {
-    Write-Host "  ○ $script" -ForegroundColor Yellow
+    Write-Host "    $script" -ForegroundColor Yellow
 }
 Write-Host ""
 
@@ -62,38 +62,38 @@ $OtherScripts = $NotConverted | Where-Object {
     $_ -notin $ManagementScripts 
 }
 
-Write-Host "📋 Pending Scripts by Category:" -ForegroundColor Cyan
+Write-Host "   Pending Scripts by Category:" -ForegroundColor Cyan
 Write-Host "================================"
 Write-Host ""
 
 if ($ScannerScripts.Count -gt 0) {
-    Write-Host "🔍 Scanner Scripts ($($ScannerScripts.Count)):" -ForegroundColor Blue
+    Write-Host "   Scanner Scripts ($($ScannerScripts.Count)):" -ForegroundColor Blue
     foreach ($script in $ScannerScripts) {
-        Write-Host "  • $script"
+        Write-Host "    $script"
     }
     Write-Host ""
 }
 
 if ($AnalysisScripts.Count -gt 0) {
-    Write-Host "📊 Analysis Scripts ($($AnalysisScripts.Count)):" -ForegroundColor Blue
+    Write-Host "   Analysis Scripts ($($AnalysisScripts.Count)):" -ForegroundColor Blue
     foreach ($script in $AnalysisScripts) {
-        Write-Host "  • $script"
+        Write-Host "    $script"
     }
     Write-Host ""
 }
 
 if ($ManagementScripts.Count -gt 0) {
-    Write-Host "⚙️  Management Scripts ($($ManagementScripts.Count)):" -ForegroundColor Blue
+    Write-Host "    Management Scripts ($($ManagementScripts.Count)):" -ForegroundColor Blue
     foreach ($script in $ManagementScripts) {
-        Write-Host "  • $script"
+        Write-Host "    $script"
     }
     Write-Host ""
 }
 
 if ($OtherScripts.Count -gt 0) {
-    Write-Host "📦 Other Scripts ($($OtherScripts.Count)):" -ForegroundColor Blue
+    Write-Host "   Other Scripts ($($OtherScripts.Count)):" -ForegroundColor Blue
     foreach ($script in $OtherScripts) {
-        Write-Host "  • $script"
+        Write-Host "    $script"
     }
     Write-Host ""
 }
@@ -103,9 +103,9 @@ Write-Host "Conversion Progress: $($Converted.Count)/$($ShellScripts.Count) ($([
 Write-Host "============================================" -ForegroundColor Cyan
 Write-Host ""
 
-Write-Host "💡 Next Steps:" -ForegroundColor Yellow
+Write-Host "   Next Steps:" -ForegroundColor Yellow
 Write-Host "1. Review the pending conversions list above"
-Write-Host "2. Convert scripts based on priority (scanners → analysis → management)"
+Write-Host "2. Convert scripts based on priority (scanners   analysis   management)"
 Write-Host "3. Test each converted script to ensure functionality"
 Write-Host "4. Update README-PowerShell-Conversion.md with completed conversions"
 Write-Host ""
@@ -142,7 +142,7 @@ Write-Host "Original script location: $shPath" -ForegroundColor Cyan
     }
     
     Write-Host ""
-    Write-Host "✅ Template files created!" -ForegroundColor Green
+    Write-Host "  Template files created!" -ForegroundColor Green
     Write-Host "You can now edit each .ps1 file to complete the conversion." -ForegroundColor Cyan
 }
 

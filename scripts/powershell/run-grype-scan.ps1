@@ -52,7 +52,7 @@ Write-Host ""
 # Function to check Docker
 function Test-Docker {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-        Write-Host "❌ Docker not found" -ForegroundColor $RED
+        Write-Host "  Docker not found" -ForegroundColor $RED
         Write-Host "Please install Docker to use Grype vulnerability scanning."
         exit 1
     }
@@ -60,13 +60,13 @@ function Test-Docker {
     try {
         docker info | Out-Null
     } catch {
-        Write-Host "❌ Docker daemon not running" -ForegroundColor $RED
+        Write-Host "  Docker daemon not running" -ForegroundColor $RED
         Write-Host "Please start Docker daemon before running Grype scan."
         exit 1
     }
 }
 
-Write-Host "🐳 Docker and Grype Information:" -ForegroundColor $BLUE
+Write-Host "   Docker and Grype Information:" -ForegroundColor $BLUE
 Write-Host "Docker version:"
 docker --version
 Write-Host "Pulling Grype and Syft images..."
@@ -83,12 +83,12 @@ function Invoke-GrypeImageScan {
         [string]$SbomFile
     )
     
-    Write-Host "🔍 Scanning Docker image: " -NoNewline -ForegroundColor $CYAN
+    Write-Host "   Scanning Docker image: " -NoNewline -ForegroundColor $CYAN
     Write-Host $ImageName -ForegroundColor $YELLOW
     "Scan type: $ScanType" | Out-File -FilePath $ScanLog -Append
     "Image: $ImageName" | Out-File -FilePath $ScanLog -Append
     
-    Write-Host "📋 Generating Software Bill of Materials (SBOM)..."
+    Write-Host "   Generating Software Bill of Materials (SBOM)..."
     docker run --rm `
         -v /var/run/docker.sock:/var/run/docker.sock `
         -v "${PWD}/${OutputDir}:/output" `
@@ -100,9 +100,9 @@ function Invoke-GrypeImageScan {
         --by-cve 2>&1 | Tee-Object -FilePath $ScanLog -Append | Out-Null
     
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Image scan completed" -ForegroundColor $GREEN
+        Write-Host "  Image scan completed" -ForegroundColor $GREEN
         
-        Write-Host "📦 Generating detailed SBOM..."
+        Write-Host "   Generating detailed SBOM..."
         docker run --rm `
             -v /var/run/docker.sock:/var/run/docker.sock `
             -v "${PWD}/${OutputDir}:/output" `
@@ -110,44 +110,44 @@ function Invoke-GrypeImageScan {
             $ImageName `
             -o spdx-json="/output/$SbomFile" 2>&1 | Tee-Object -FilePath $ScanLog -Append | Out-Null
     } else {
-        Write-Host "⚠️  Image scan completed with warnings" -ForegroundColor $YELLOW
+        Write-Host "    Image scan completed with warnings" -ForegroundColor $YELLOW
     }
 }
 
 # Function to scan container images
 function Invoke-ContainerImageScan {
-    Write-Host "🛡️  Step 2: Container Image Vulnerability Scan" -ForegroundColor $PURPLE
+    Write-Host "     Step 2: Container Image Vulnerability Scan" -ForegroundColor $PURPLE
     Write-Host "=============================================="
     
     $DockerFiles = Get-ChildItem -Path . -Filter "Dockerfile*" -File -ErrorAction SilentlyContinue
     
     if ($DockerFiles.Count -gt 0) {
-        Write-Host "📦 Found $($DockerFiles.Count) Docker file(s): $($DockerFiles.Name -join ', ')"
+        Write-Host "   Found $($DockerFiles.Count) Docker file(s): $($DockerFiles.Name -join ', ')"
         
         foreach ($dockerfile in $DockerFiles) {
-            Write-Host "🔍 Processing Docker file: $($dockerfile.Name)"
+            Write-Host "   Processing Docker file: $($dockerfile.Name)"
             
             $CleanName = $dockerfile.BaseName.ToLower() -replace '\.', '-'
             $ImageName = "advana-marketplace:${CleanName}-grype-scan"
             
-            Write-Host "📦 Building image from $($dockerfile.Name) for vulnerability scanning..."
+            Write-Host "   Building image from $($dockerfile.Name) for vulnerability scanning..."
             docker build -f $dockerfile.FullName -t $ImageName . 2>&1 | Out-File -FilePath $ScanLog -Append
             
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "✅ Image built successfully from $($dockerfile.Name)" -ForegroundColor $GREEN
-                Write-Host "🔍 Scanning built image for vulnerabilities..."
+                Write-Host "  Image built successfully from $($dockerfile.Name)" -ForegroundColor $GREEN
+                Write-Host "   Scanning built image for vulnerabilities..."
                 
                 Invoke-GrypeImageScan -ImageName $ImageName -ScanType "container-${CleanName}" `
                     -OutputFile "grype-${CleanName}-results.json" -SbomFile "sbom-${CleanName}.json"
                 
                 docker rmi $ImageName 2>&1 | Out-File -FilePath $ScanLog -Append
             } else {
-                Write-Host "❌ Failed to build image from $($dockerfile.Name)" -ForegroundColor $RED
+                Write-Host "  Failed to build image from $($dockerfile.Name)" -ForegroundColor $RED
             }
         }
-        Write-Host "✅ Built container image vulnerability scanning completed" -ForegroundColor $GREEN
+        Write-Host "  Built container image vulnerability scanning completed" -ForegroundColor $GREEN
     } else {
-        Write-Host "⚠️  No Docker files found" -ForegroundColor $YELLOW
+        Write-Host "    No Docker files found" -ForegroundColor $YELLOW
     }
     
     Invoke-BaseImageScan
@@ -155,18 +155,18 @@ function Invoke-ContainerImageScan {
 
 # Function to scan base images
 function Invoke-BaseImageScan {
-    Write-Host "🔍 Scanning common base images for vulnerabilities..."
+    Write-Host "   Scanning common base images for vulnerabilities..."
     
     $BaseImages = @("nginx:alpine", "node:18-alpine", "python:3.11-alpine", "ubuntu:22.04", "alpine:latest")
     
     foreach ($image in $BaseImages) {
-        Write-Host "📋 Scanning base image: " -NoNewline
+        Write-Host "   Scanning base image: " -NoNewline
         Write-Host $image -ForegroundColor $CYAN
         
         try {
             docker image inspect $image 2>&1 | Out-Null
         } catch {
-            Write-Host "📥 Pulling image $image..."
+            Write-Host "   Pulling image $image..."
             docker pull $image 2>&1 | Out-File -FilePath $ScanLog -Append
         }
         
@@ -174,7 +174,7 @@ function Invoke-BaseImageScan {
         Invoke-GrypeImageScan -ImageName $image -ScanType "base-image" `
             -OutputFile "grype-base-$SafeImageName-results.json" -SbomFile "sbom-base-$SafeImageName.json"
         
-        Write-Host "✅ Base image $image vulnerability scan completed" -ForegroundColor $GREEN
+        Write-Host "  Base image $image vulnerability scan completed" -ForegroundColor $GREEN
     }
 }
 
@@ -182,7 +182,7 @@ function Invoke-BaseImageScan {
 function Invoke-FilesystemScan {
     param([string]$TargetDir = ".", [string]$OutputFile = "grype-filesystem-results.json")
     
-    Write-Host "🔍 Scanning filesystem: " -NoNewline -ForegroundColor $CYAN
+    Write-Host "   Scanning filesystem: " -NoNewline -ForegroundColor $CYAN
     Write-Host $TargetDir -ForegroundColor $YELLOW
     
     docker run --rm `
@@ -194,9 +194,9 @@ function Invoke-FilesystemScan {
         --file "/output/$OutputFile" 2>&1 | Tee-Object -FilePath $ScanLog -Append | Out-Null
     
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Filesystem scan completed" -ForegroundColor $GREEN
+        Write-Host "  Filesystem scan completed" -ForegroundColor $GREEN
     } else {
-        Write-Host "⚠️  Filesystem scan completed with warnings" -ForegroundColor $YELLOW
+        Write-Host "    Filesystem scan completed with warnings" -ForegroundColor $YELLOW
     }
 }
 

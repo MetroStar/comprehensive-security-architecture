@@ -54,7 +54,7 @@ function Consolidate-ToolReports {
         [string]$FilePattern
     )
     
-    Write-Host "📊 Consolidating $ToolName reports..." -ForegroundColor $CYAN
+    Write-Host "   Consolidating $ToolName reports..." -ForegroundColor $CYAN
     
     # Create tool-specific directories
     $ToolDirs = @(
@@ -73,16 +73,16 @@ function Consolidate-ToolReports {
             Get-ChildItem -Path $SourceDir -File | ForEach-Object {
                 Copy-Item -Path $_.FullName -Destination "$UNIFIED_DIR\raw-data\$ToolName\" -Force -ErrorAction SilentlyContinue
             }
-            Write-Host "✅ $ToolName reports consolidated" -ForegroundColor $GREEN
+            Write-Host "  $ToolName reports consolidated" -ForegroundColor $GREEN
         } catch {
-            Write-Host "⚠️  Error copying $ToolName reports: $_" -ForegroundColor $YELLOW
+            Write-Host "    Error copying $ToolName reports: $_" -ForegroundColor $YELLOW
         }
     } else {
-        Write-Host "⚠️  $ToolName reports directory not found: $SourceDir" -ForegroundColor $YELLOW
+        Write-Host "    $ToolName reports directory not found: $SourceDir" -ForegroundColor $YELLOW
     }
 }
 
-Write-Host "🔄 Consolidating security reports from all tools..." -ForegroundColor $BLUE
+Write-Host "   Consolidating security reports from all tools..." -ForegroundColor $BLUE
 Write-Host ""
 
 # Consolidate reports from each security tool - Updated paths to actual report locations
@@ -96,7 +96,7 @@ Consolidate-ToolReports "Grype" (Join-Path $RepoRoot "grype-reports") "*.json"
 Consolidate-ToolReports "Xeol" (Join-Path $RepoRoot "xeol-reports") "*.json"
 
 # Generate comprehensive security dashboard
-Write-Host "📈 Generating dynamic security dashboard..." -ForegroundColor $PURPLE
+Write-Host "   Generating dynamic security dashboard..." -ForegroundColor $PURPLE
 
 # Check if Python is available
 $PythonCmd = $null
@@ -115,7 +115,7 @@ if ($PythonCmd) {
         Write-Host "Using Python script to generate dynamic dashboard..." -ForegroundColor $CYAN
         & $PythonCmd $PythonScript (Join-Path $RepoRoot "reports") $DashboardFile
     } else {
-        Write-Host "⚠️  Python dashboard script not found: $PythonScript" -ForegroundColor $YELLOW
+        Write-Host "    Python dashboard script not found: $PythonScript" -ForegroundColor $YELLOW
         Write-Host "Generating basic dashboard..." -ForegroundColor $YELLOW
         
         # Fallback to basic static dashboard
@@ -135,7 +135,7 @@ if ($PythonCmd) {
 </head>
 <body>
     <div class="header">
-        <h1>🛡️ Security Dashboard</h1>
+        <h1>    Security Dashboard</h1>
         <p>Generated: $ReportDate</p>
     </div>
     <div class="container">
@@ -151,7 +151,7 @@ if ($PythonCmd) {
         $BasicDashboard | Out-File -FilePath $DashboardFile -Encoding UTF8
     }
 } else {
-    Write-Host "⚠️  Python not found. Generating basic dashboard..." -ForegroundColor $YELLOW
+    Write-Host "    Python not found. Generating basic dashboard..." -ForegroundColor $YELLOW
     
     # Fallback to basic static dashboard
     $BasicDashboard = @"
@@ -170,7 +170,7 @@ if ($PythonCmd) {
 </head>
 <body>
     <div class="header">
-        <h1>🛡️ Security Dashboard</h1>
+        <h1>    Security Dashboard</h1>
         <p>Generated: $ReportDate</p>
     </div>
     <div class="container">
@@ -200,11 +200,11 @@ This directory contains consolidated security reports from all eight layers of o
 
 ``````
 security-reports/
-├── dashboards/          # Interactive HTML dashboards
-├── html-reports/        # Human-readable HTML reports by tool
-├── markdown-reports/    # Markdown summaries by tool
-├── csv-reports/         # CSV data for spreadsheet analysis
-└── raw-data/           # Original JSON outputs from each tool
+    dashboards/          # Interactive HTML dashboards
+    html-reports/        # Human-readable HTML reports by tool
+    markdown-reports/    # Markdown summaries by tool
+    csv-reports/         # CSV data for spreadsheet analysis
+    raw-data/           # Original JSON outputs from each tool
 ``````
 
 ## Security Tools Covered
@@ -259,30 +259,30 @@ $IndexContent = @"
 <body>
     <div class="container">
         <div class="header">
-            <h1>🛡️ Security Reports</h1>
+            <h1>    Security Reports</h1>
             <p>Comprehensive DevOps Security Analysis</p>
             <p><strong>Generated:</strong> $ReportDate</p>
         </div>
         
         <div class="links">
             <a href="dashboards/security-dashboard.html" class="link dashboard-link">
-                📊 Main Security Dashboard
+                   Main Security Dashboard
             </a>
             
             <a href="html-reports/" class="link">
-                📄 HTML Reports by Tool
+                   HTML Reports by Tool
             </a>
             
             <a href="markdown-reports/" class="link">
-                📝 Markdown Summaries
+                   Markdown Summaries
             </a>
             
             <a href="raw-data/" class="link">
-                🗃️ Raw JSON Data
+                    Raw JSON Data
             </a>
             
             <a href="README.md" class="link">
-                📖 Documentation
+                   Documentation
             </a>
         </div>
     </div>
@@ -294,17 +294,17 @@ $IndexFile = Join-Path $UNIFIED_DIR "index.html"
 $IndexContent | Out-File -FilePath $IndexFile -Encoding UTF8
 
 Write-Host ""
-Write-Host "✅ Security reports consolidation completed!" -ForegroundColor $GREEN
+Write-Host "  Security reports consolidation completed!" -ForegroundColor $GREEN
 Write-Host ""
-Write-Host "📁 Unified Reports Directory: $UNIFIED_DIR" -ForegroundColor $BLUE
-Write-Host "📊 Main Dashboard: $DashboardFile" -ForegroundColor $BLUE
-Write-Host "📋 Navigation Index: $IndexFile" -ForegroundColor $BLUE
+Write-Host "   Unified Reports Directory: $UNIFIED_DIR" -ForegroundColor $BLUE
+Write-Host "   Main Dashboard: $DashboardFile" -ForegroundColor $BLUE
+Write-Host "   Navigation Index: $IndexFile" -ForegroundColor $BLUE
 Write-Host ""
-Write-Host "🔗 Quick Access:" -ForegroundColor $CYAN
+Write-Host "   Quick Access:" -ForegroundColor $CYAN
 Write-Host "1. Open main dashboard: Start-Process '$DashboardFile'"
 Write-Host "2. Browse all reports: Start-Process '$IndexFile'"
 Write-Host "3. View documentation: Get-Content '$ReadmeFile'"
 Write-Host ""
 Write-Host "============================================" -ForegroundColor $WHITE
-Write-Host "✅ All security reports consolidated successfully!" -ForegroundColor $GREEN
+Write-Host "  All security reports consolidated successfully!" -ForegroundColor $GREEN
 Write-Host "============================================" -ForegroundColor $WHITE

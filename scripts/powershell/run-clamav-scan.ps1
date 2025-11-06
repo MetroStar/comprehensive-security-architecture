@@ -28,7 +28,7 @@ docker run --rm `
   freshclam
 
 if ($LASTEXITCODE -ne 0) {
-  Write-Host "⚠️  Warning: Failed to update virus definitions. Proceeding with existing definitions..."
+  Write-Host "    Warning: Failed to update virus definitions. Proceeding with existing definitions..."
 }
 
 Write-Host ""
@@ -65,13 +65,13 @@ Write-Host "============================================"
 
 # Parse results based on exit code
 if ($ScanExitCode -eq 0) {
-  Write-Host "✅ ClamAV scan completed successfully!" -ForegroundColor Green
+  Write-Host "  ClamAV scan completed successfully!" -ForegroundColor Green
   Write-Host "============================================"
-  Write-Host "🎉 No malware or viruses detected!" -ForegroundColor Green
+  Write-Host "   No malware or viruses detected!" -ForegroundColor Green
 } elseif ($ScanExitCode -eq 1) {
-  Write-Host "⚠️  ClamAV scan completed with threats detected!" -ForegroundColor Yellow
+  Write-Host "    ClamAV scan completed with threats detected!" -ForegroundColor Yellow
   Write-Host "============================================"
-  Write-Host "🚨 MALWARE/VIRUSES FOUND! Check the detailed logs." -ForegroundColor Red
+  Write-Host "   MALWARE/VIRUSES FOUND! Check the detailed logs." -ForegroundColor Red
   
   # Extract infected files from log
   if (Test-Path $ScanLog) {
@@ -81,7 +81,7 @@ if ($ScanExitCode -eq 0) {
     Select-String -Path $ScanLog -Pattern "FOUND" | Tee-Object -FilePath $InfectedLog
   }
 } else {
-  Write-Host "❌ ClamAV scan failed with error code: $ScanExitCode" -ForegroundColor Red
+  Write-Host "  ClamAV scan failed with error code: $ScanExitCode" -ForegroundColor Red
   Write-Host "============================================"
 }
 
@@ -112,7 +112,7 @@ if (Test-Path $ScanLog) {
   }
 } else {
   Write-Host ""
-  Write-Host "⚠️  No scan log generated. Check Docker configuration." -ForegroundColor Yellow
+  Write-Host "    No scan log generated. Check Docker configuration." -ForegroundColor Yellow
 }
 
 Write-Host ""

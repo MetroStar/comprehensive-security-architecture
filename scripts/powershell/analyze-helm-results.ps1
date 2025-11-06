@@ -37,7 +37,7 @@ New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 # TODO: Implement full conversion from bash script
 # Original bash script: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\bash\analyze-helm-results.sh
 
-Write-Host "⚠️  This script is a template and needs full implementation" -ForegroundColor Yellow
+Write-Host "    This script is a template and needs full implementation" -ForegroundColor Yellow
 Write-Host "Original bash script: analyze-helm-results.sh" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "For now, you can use the bash version:" -ForegroundColor Yellow

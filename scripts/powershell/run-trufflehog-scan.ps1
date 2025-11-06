@@ -40,7 +40,7 @@ Write-Host ""
 # Function to check Docker availability
 function Test-Docker {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-        Write-Host "❌ Docker not found" -ForegroundColor $RED
+        Write-Host "  Docker not found" -ForegroundColor $RED
         Write-Host "Please install Docker to use TruffleHog scanning."
         exit 1
     }
@@ -48,7 +48,7 @@ function Test-Docker {
     try {
         docker info | Out-Null
     } catch {
-        Write-Host "❌ Docker daemon not running" -ForegroundColor $RED
+        Write-Host "  Docker daemon not running" -ForegroundColor $RED
         Write-Host "Please start Docker daemon before running TruffleHog scan."
         exit 1
     }
@@ -56,9 +56,9 @@ function Test-Docker {
 
 # Function to scan filesystem
 function Invoke-FilesystemScan {
-    Write-Host "🛡️  Step 1: Filesystem Secret Scan" -ForegroundColor $BLUE
+    Write-Host "     Step 1: Filesystem Secret Scan" -ForegroundColor $BLUE
     Write-Host "=================================="
-    Write-Host "🔍 Scanning repository filesystem for secrets..."
+    Write-Host "   Scanning repository filesystem for secrets..."
     "Filesystem scan started" | Out-File -FilePath $ScanLog -Append
     
     # Run TruffleHog filesystem scan using Docker with exclusions
@@ -74,11 +74,11 @@ function Invoke-FilesystemScan {
     
     $exitCode = $LASTEXITCODE
     if ($exitCode -eq 0) {
-        Write-Host "✅ Filesystem scan completed" -ForegroundColor $GREEN
+        Write-Host "  Filesystem scan completed" -ForegroundColor $GREEN
         "Filesystem scan completed successfully" | Out-File -FilePath $ScanLog -Append
         return 0
     } else {
-        Write-Host "⚠️  Filesystem scan completed with warnings" -ForegroundColor $YELLOW
+        Write-Host "    Filesystem scan completed with warnings" -ForegroundColor $YELLOW
         "Filesystem scan completed with warnings" | Out-File -FilePath $ScanLog -Append
         return $exitCode
     }
@@ -86,30 +86,30 @@ function Invoke-FilesystemScan {
 
 # Function to scan container images
 function Invoke-ContainerImageScan {
-    Write-Host "🛡️  Step 2: Container Image Secret Scan" -ForegroundColor $BLUE
+    Write-Host "     Step 2: Container Image Secret Scan" -ForegroundColor $BLUE
     Write-Host "======================================="
     
     # Check for Docker files (various naming patterns)
     $DockerFiles = Get-ChildItem -Path . -Filter "Dockerfile*" -File -ErrorAction SilentlyContinue
     
     if ($DockerFiles.Count -gt 0) {
-        Write-Host "📦 Found $($DockerFiles.Count) Docker file(s): $($DockerFiles.Name -join ', ')"
+        Write-Host "   Found $($DockerFiles.Count) Docker file(s): $($DockerFiles.Name -join ', ')"
         "Found Docker files: $($DockerFiles.Name -join ', ')" | Out-File -FilePath $ScanLog -Append
         
         # Scan each Docker file found
         foreach ($dockerfile in $DockerFiles) {
-            Write-Host "🔍 Processing Docker file: $($dockerfile.Name)"
+            Write-Host "   Processing Docker file: $($dockerfile.Name)"
             
             # Extract a clean name for the image
             $CleanName = $dockerfile.BaseName.ToLower() -replace '\.', '-'
             $ImageName = "advana-marketplace:${CleanName}-scan"
             
-            Write-Host "📦 Building image from $($dockerfile.Name)..."
+            Write-Host "   Building image from $($dockerfile.Name)..."
             docker build -f $dockerfile.FullName -t $ImageName . 2>&1 | Out-File -FilePath $ScanLog -Append
             
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "✅ Image built successfully from $($dockerfile.Name)" -ForegroundColor $GREEN
-                Write-Host "🔍 Scanning built image for embedded secrets..."
+                Write-Host "  Image built successfully from $($dockerfile.Name)" -ForegroundColor $GREEN
+                Write-Host "   Scanning built image for embedded secrets..."
                 
                 # Create specific output file for this Docker file
                 $DockerResultsFile = Join-Path $OutputDir "trufflehog-${CleanName}-results.json"
@@ -125,10 +125,10 @@ function Invoke-ContainerImageScan {
                 
                 $exitCode = $LASTEXITCODE
                 if ($exitCode -eq 0) {
-                    Write-Host "✅ Image scan completed for $($dockerfile.Name)" -ForegroundColor $GREEN
+                    Write-Host "  Image scan completed for $($dockerfile.Name)" -ForegroundColor $GREEN
                     "Image scan completed successfully for $($dockerfile.Name)" | Out-File -FilePath $ScanLog -Append
                 } else {
-                    Write-Host "⚠️  Image scan completed with warnings for $($dockerfile.Name)" -ForegroundColor $YELLOW
+                    Write-Host "    Image scan completed with warnings for $($dockerfile.Name)" -ForegroundColor $YELLOW
                     "Image scan completed with warnings for $($dockerfile.Name)" | Out-File -FilePath $ScanLog -Append
                 }
                 
@@ -136,15 +136,15 @@ function Invoke-ContainerImageScan {
                 docker rmi $ImageName 2>&1 | Out-File -FilePath $ScanLog -Append
                 
             } else {
-                Write-Host "❌ Failed to build image from $($dockerfile.Name)" -ForegroundColor $RED
+                Write-Host "  Failed to build image from $($dockerfile.Name)" -ForegroundColor $RED
                 "Failed to build image from $($dockerfile.Name)" | Out-File -FilePath $ScanLog -Append
             }
         }
-        Write-Host "✅ Built container image scanning completed" -ForegroundColor $GREEN
+        Write-Host "  Built container image scanning completed" -ForegroundColor $GREEN
         
     } else {
-        Write-Host "⚠️  No Docker files found (searched for: Dockerfile, Dockerfile.*, etc.)" -ForegroundColor $YELLOW
-        Write-Host "📋 Available files in repository root:" -ForegroundColor $BLUE
+        Write-Host "    No Docker files found (searched for: Dockerfile, Dockerfile.*, etc.)" -ForegroundColor $YELLOW
+        Write-Host "   Available files in repository root:" -ForegroundColor $BLUE
         Get-ChildItem -Path . | Where-Object { $_.Name -match "(Dockerfile|docker)" } | Select-Object -First 5 | ForEach-Object { Write-Host "  $($_.Name)" }
     }
 }

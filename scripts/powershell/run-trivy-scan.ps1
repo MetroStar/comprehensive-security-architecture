@@ -54,7 +54,7 @@ Write-Host ""
 # Function to check Docker
 function Test-Docker {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
-        Write-Host "❌ Docker not found" -ForegroundColor $RED
+        Write-Host "  Docker not found" -ForegroundColor $RED
         Write-Host "Please install Docker to use Trivy security scanning."
         exit 1
     }
@@ -62,13 +62,13 @@ function Test-Docker {
     try {
         docker info | Out-Null
     } catch {
-        Write-Host "❌ Docker daemon not running" -ForegroundColor $RED
+        Write-Host "  Docker daemon not running" -ForegroundColor $RED
         Write-Host "Please start Docker daemon before running Trivy scan."
         exit 1
     }
 }
 
-Write-Host "🐳 Docker and Trivy Information:" -ForegroundColor $BLUE
+Write-Host "   Docker and Trivy Information:" -ForegroundColor $BLUE
 Write-Host "Docker version:"
 docker --version
 Write-Host "Pulling Trivy image..."
@@ -83,7 +83,7 @@ function Invoke-TrivyImageScan {
         [string]$OutputFile
     )
     
-    Write-Host "🔍 Scanning Docker image: " -NoNewline -ForegroundColor $CYAN
+    Write-Host "   Scanning Docker image: " -NoNewline -ForegroundColor $CYAN
     Write-Host $ImageName -ForegroundColor $YELLOW
     "Scan type: $ScanType" | Out-File -FilePath $ScanLog -Append
     "Image: $ImageName" | Out-File -FilePath $ScanLog -Append
@@ -99,49 +99,49 @@ function Invoke-TrivyImageScan {
         $ImageName 2>&1 | Tee-Object -FilePath $ScanLog -Append | Out-Null
     
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Image scan completed" -ForegroundColor $GREEN
+        Write-Host "  Image scan completed" -ForegroundColor $GREEN
         "Image scan completed successfully" | Out-File -FilePath $ScanLog -Append
     } else {
-        Write-Host "⚠️  Image scan completed with warnings" -ForegroundColor $YELLOW
+        Write-Host "    Image scan completed with warnings" -ForegroundColor $YELLOW
         "Image scan completed with warnings" | Out-File -FilePath $ScanLog -Append
     }
 }
 
 # Function to scan container images
 function Invoke-ContainerImageScan {
-    Write-Host "🛡️  Step 2: Container Image Security Scan" -ForegroundColor $PURPLE
+    Write-Host "     Step 2: Container Image Security Scan" -ForegroundColor $PURPLE
     Write-Host "=========================================="
     
     $DockerFiles = Get-ChildItem -Path . -Filter "Dockerfile*" -File -ErrorAction SilentlyContinue
     
     if ($DockerFiles.Count -gt 0) {
-        Write-Host "📦 Found $($DockerFiles.Count) Docker file(s): $($DockerFiles.Name -join ', ')"
+        Write-Host "   Found $($DockerFiles.Count) Docker file(s): $($DockerFiles.Name -join ', ')"
         "Found Docker files: $($DockerFiles.Name -join ', ')" | Out-File -FilePath $ScanLog -Append
         
         foreach ($dockerfile in $DockerFiles) {
-            Write-Host "🔍 Processing Docker file: $($dockerfile.Name)"
+            Write-Host "   Processing Docker file: $($dockerfile.Name)"
             
             $CleanName = $dockerfile.BaseName.ToLower() -replace '\.', '-'
             $ImageName = "advana-marketplace:${CleanName}-trivy-scan"
             
-            Write-Host "📦 Building image from $($dockerfile.Name) for security scanning..."
+            Write-Host "   Building image from $($dockerfile.Name) for security scanning..."
             docker build -f $dockerfile.FullName -t $ImageName . 2>&1 | Out-File -FilePath $ScanLog -Append
             
             if ($LASTEXITCODE -eq 0) {
-                Write-Host "✅ Image built successfully from $($dockerfile.Name)" -ForegroundColor $GREEN
-                Write-Host "🔍 Scanning built image for security vulnerabilities..."
+                Write-Host "  Image built successfully from $($dockerfile.Name)" -ForegroundColor $GREEN
+                Write-Host "   Scanning built image for security vulnerabilities..."
                 
                 Invoke-TrivyImageScan -ImageName $ImageName -ScanType "container-${CleanName}" -OutputFile "trivy-${CleanName}-results.json"
                 
                 docker rmi $ImageName 2>&1 | Out-File -FilePath $ScanLog -Append
             } else {
-                Write-Host "❌ Failed to build image from $($dockerfile.Name)" -ForegroundColor $RED
+                Write-Host "  Failed to build image from $($dockerfile.Name)" -ForegroundColor $RED
                 "Failed to build image from $($dockerfile.Name)" | Out-File -FilePath $ScanLog -Append
             }
         }
-        Write-Host "✅ Built container image security scanning completed" -ForegroundColor $GREEN
+        Write-Host "  Built container image security scanning completed" -ForegroundColor $GREEN
     } else {
-        Write-Host "⚠️  No Docker files found" -ForegroundColor $YELLOW
+        Write-Host "    No Docker files found" -ForegroundColor $YELLOW
     }
     
     Invoke-BaseImageScan
@@ -149,25 +149,25 @@ function Invoke-ContainerImageScan {
 
 # Function to scan base images
 function Invoke-BaseImageScan {
-    Write-Host "🔍 Scanning common base images for security vulnerabilities..."
+    Write-Host "   Scanning common base images for security vulnerabilities..."
     
     $BaseImages = @("nginx:alpine", "node:18-alpine", "python:3.11-alpine", "ubuntu:22.04", "alpine:latest")
     
     foreach ($image in $BaseImages) {
-        Write-Host "📋 Scanning base image: " -NoNewline
+        Write-Host "   Scanning base image: " -NoNewline
         Write-Host $image -ForegroundColor $CYAN
         
         try {
             docker image inspect $image 2>&1 | Out-Null
         } catch {
-            Write-Host "📥 Pulling image $image..."
+            Write-Host "   Pulling image $image..."
             docker pull $image 2>&1 | Out-File -FilePath $ScanLog -Append
         }
         
         $SafeImageName = $image -replace '[:/]', '-'
         Invoke-TrivyImageScan -ImageName $image -ScanType "base-image" -OutputFile "trivy-base-$SafeImageName-results.json"
         
-        Write-Host "✅ Base image $image security scan completed" -ForegroundColor $GREEN
+        Write-Host "  Base image $image security scan completed" -ForegroundColor $GREEN
     }
 }
 
@@ -175,7 +175,7 @@ function Invoke-BaseImageScan {
 function Invoke-FilesystemScan {
     param([string]$TargetDir = ".", [string]$OutputFile = "trivy-filesystem-results.json")
     
-    Write-Host "🔍 Scanning filesystem: " -NoNewline -ForegroundColor $CYAN
+    Write-Host "   Scanning filesystem: " -NoNewline -ForegroundColor $CYAN
     Write-Host $TargetDir -ForegroundColor $YELLOW
     "Filesystem scan target: $TargetDir" | Out-File -FilePath $ScanLog -Append
     
@@ -189,9 +189,9 @@ function Invoke-FilesystemScan {
         "/workspace/$TargetDir" 2>&1 | Tee-Object -FilePath $ScanLog -Append | Out-Null
     
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Filesystem scan completed" -ForegroundColor $GREEN
+        Write-Host "  Filesystem scan completed" -ForegroundColor $GREEN
     } else {
-        Write-Host "⚠️  Filesystem scan completed with warnings" -ForegroundColor $YELLOW
+        Write-Host "    Filesystem scan completed with warnings" -ForegroundColor $YELLOW
     }
 }
 
@@ -199,11 +199,11 @@ function Invoke-FilesystemScan {
 function Invoke-KubernetesScan {
     param([string]$TargetDir = "./chart", [string]$OutputFile = "trivy-kubernetes-results.json")
     
-    Write-Host "🔍 Scanning Kubernetes manifests: " -NoNewline -ForegroundColor $CYAN
+    Write-Host "   Scanning Kubernetes manifests: " -NoNewline -ForegroundColor $CYAN
     Write-Host $TargetDir -ForegroundColor $YELLOW
     
     if (-not (Test-Path $TargetDir)) {
-        Write-Host "⚠️  Kubernetes directory not found: $TargetDir" -ForegroundColor $YELLOW
+        Write-Host "    Kubernetes directory not found: $TargetDir" -ForegroundColor $YELLOW
         return
     }
     
@@ -217,9 +217,9 @@ function Invoke-KubernetesScan {
         "/workspace/$TargetDir" 2>&1 | Tee-Object -FilePath $ScanLog -Append | Out-Null
     
     if ($LASTEXITCODE -eq 0) {
-        Write-Host "✅ Kubernetes scan completed" -ForegroundColor $GREEN
+        Write-Host "  Kubernetes scan completed" -ForegroundColor $GREEN
     } else {
-        Write-Host "⚠️  Kubernetes scan completed with warnings" -ForegroundColor $YELLOW
+        Write-Host "    Kubernetes scan completed with warnings" -ForegroundColor $YELLOW
     }
 }
 
