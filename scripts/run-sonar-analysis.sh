@@ -309,62 +309,102 @@ TOTAL_SOURCE_FILES=0
 ESTIMATED_COVERABLE_LINES=0
 ALL_SOURCE_LINES=0
 
-# Try to extract real test results from various sources
-if [ -d "$REPO_PATH/frontend" ]; then
-  # Look for LCOV coverage results first (standard format used by SonarQube)
-  LCOV_FILE="$REPO_PATH/frontend/coverage/lcov.info"
-  
-  if [ -f "$LCOV_FILE" ]; then
-    echo "✅ Found LCOV coverage data: lcov.info"
-    
-    # Parse LCOV format (Lines Found/Lines Hit)
-    TOTAL_LINES=$(grep "^LF:" "$LCOV_FILE" | cut -d: -f2 | awk '{sum += $1} END {print sum+0}')
-    COVERED_LINES=$(grep "^LH:" "$LCOV_FILE" | cut -d: -f2 | awk '{sum += $1} END {print sum+0}')
-    FILES_IN_LCOV=$(grep "^SF:" "$LCOV_FILE" | wc -l | tr -d ' ')
-    
-    # Count all source files for comparison with SonarQube
-    if [ -d "$REPO_PATH/frontend/src" ]; then
-      TOTAL_SOURCE_FILES=$(find "$REPO_PATH/frontend/src" -name "*.ts" -o -name "*.tsx" | grep -v "\.test\." | grep -v "\.spec\." | wc -l | tr -d ' ')
-    else
-      TOTAL_SOURCE_FILES="N/A"
-    fi
-    
-    if [ "$TOTAL_LINES" -gt 0 ] && [ "$COVERED_LINES" -ge 0 ]; then
-      # Calculate SonarQube-style coverage (all source files, not just executed ones)
-      if [ -d "$REPO_PATH/frontend/src" ]; then
-        # Count total coverable lines in ALL source files (excluding tests, comments, etc.)
-        ALL_SOURCE_LINES=$(find "$REPO_PATH/frontend/src" -name "*.ts" -o -name "*.tsx" | grep -v "\.test\." | grep -v "\.spec\." | xargs -I {} cat "{}" 2>/dev/null | wc -l || echo "0")
-        
-        # Estimate coverable lines (roughly 44% of total lines, matching SonarQube's analysis)
-        ESTIMATED_COVERABLE_LINES=$(echo "scale=0; $ALL_SOURCE_LINES * 0.43" | bc 2>/dev/null || echo "$ALL_SOURCE_LINES")
-        
-        # SonarQube-style coverage: covered lines from LCOV / estimated total coverable lines
-        SONAR_STYLE_COVERAGE=$(echo "scale=2; $COVERED_LINES * 100 / $ESTIMATED_COVERABLE_LINES" | bc 2>/dev/null || echo "N/A")
-        
-        echo "📊 LCOV-only coverage: $COVERED_LINES/$TOTAL_LINES lines = $(echo "scale=2; $COVERED_LINES * 100 / $TOTAL_LINES" | bc)% (executed files only)"
-        echo "🎯 SonarQube-style coverage: $COVERED_LINES/$ESTIMATED_COVERABLE_LINES lines = ${SONAR_STYLE_COVERAGE}% (all project files)"
-        echo "📁 Coverage scope: $FILES_IN_LCOV/$TOTAL_SOURCE_FILES files have coverage data"
-        echo "📏 Total source lines: $ALL_SOURCE_LINES (estimated coverable: $ESTIMATED_COVERABLE_LINES)"
-        echo " Using SonarQube methodology (includes all source files)"
-        
-        # Use SonarQube-style calculation for reporting
-        COVERAGE_PERCENT="$SONAR_STYLE_COVERAGE"
-      else
-        # Fallback to LCOV-only calculation
-        COVERAGE_PERCENT=$(echo "scale=2; $COVERED_LINES * 100 / $TOTAL_LINES" | bc 2>/dev/null || echo "N/A")
-        echo "📊 LCOV coverage calculation: $COVERED_LINES/$TOTAL_LINES lines = ${COVERAGE_PERCENT}%"
-      fi
-      ANALYSIS_STATUS="SUCCESS"
-    fi
+# Enhanced test results extraction for both Vitest (frontend) and Jest (Node.js) projects
+# Look for LCOV coverage results first (standard format used by SonarQube)
+
+LCOV_LOCATIONS=(
+  "$REPO_PATH/frontend/coverage/lcov.info"    # Vitest frontend subproject
+  "$REPO_PATH/coverage/lcov.info"             # Jest root project coverage
+  "$REPO_PATH/reports/coverage/lcov.info"     # Jest reports directory (common in monolith projects)
+  "$REPO_PATH/coverage/reports/lcov.info"     # Alternative Jest location
+  "$REPO_PATH/vitest-coverage/lcov.info"      # Alternative Vitest output
+  "$REPO_PATH/jest-coverage/lcov.info"        # Alternative Jest output
+  "$REPO_PATH/test-coverage/lcov.info"        # Generic test coverage
+  "$REPO_PATH/test/coverage/lcov.info"        # Alternative test directory
+)
+
+LCOV_FILE=""
+for lcov_path in "${LCOV_LOCATIONS[@]}"; do
+  if [ -f "$lcov_path" ]; then
+    LCOV_FILE="$lcov_path"
+    echo "✅ Found LCOV coverage data: $(basename $(dirname "$lcov_path"))/lcov.info"
+    break
   fi
+done
+
+if [ -n "$LCOV_FILE" ]; then
+  echo "📊 Processing LCOV format coverage for $PROJECT_TYPE project"
   
-  # Fallback to JSON coverage files if LCOV not available
-  if [ "$COVERAGE_PERCENT" = "N/A" ]; then
-    echo "⚠️  LCOV file not found, trying JSON coverage files..."
-    COVERAGE_FILES=(
-      "$REPO_PATH/frontend/coverage/coverage-summary.json"
-      "$REPO_PATH/frontend/coverage/coverage-final.json"
-    )
+  # Parse LCOV format (Lines Found/Lines Hit)
+  TOTAL_LINES=$(grep "^LF:" "$LCOV_FILE" | cut -d: -f2 | awk '{sum += $1} END {print sum+0}')
+  COVERED_LINES=$(grep "^LH:" "$LCOV_FILE" | cut -d: -f2 | awk '{sum += $1} END {print sum+0}')
+  FILES_IN_LCOV=$(grep "^SF:" "$LCOV_FILE" | wc -l | tr -d ' ')
+  
+  # Count all source files for comparison with SonarQube - adapted to project type
+  SOURCE_DIRS=(
+    "$REPO_PATH/frontend/src"  # Frontend subproject
+    "$REPO_PATH/src"           # Standard src directory
+    "$REPO_PATH/lib"           # Alternative lib directory
+    "$REPO_PATH"               # Project root (fallback)
+  )
+  
+  for src_dir in "${SOURCE_DIRS[@]}"; do
+    if [ -d "$src_dir" ] && [ "$(find "$src_dir" -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" | grep -v "\.test\." | grep -v "\.spec\." | grep -v node_modules | head -1)" ]; then
+      TOTAL_SOURCE_FILES=$(find "$src_dir" -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" | grep -v "\.test\." | grep -v "\.spec\." | grep -v node_modules | wc -l | tr -d ' ')
+      SOURCE_FOR_COUNTING="$src_dir"
+      break
+    fi
+  done
+  
+  if [ -z "$TOTAL_SOURCE_FILES" ] || [ "$TOTAL_SOURCE_FILES" -eq 0 ]; then
+    TOTAL_SOURCE_FILES="N/A"
+  fi
+    
+  if [ "$TOTAL_LINES" -gt 0 ] && [ "$COVERED_LINES" -ge 0 ]; then
+    # Calculate SonarQube-style coverage (all source files, not just executed ones)
+    if [ -n "$SOURCE_FOR_COUNTING" ]; then
+      # Count total coverable lines in ALL source files (excluding tests, comments, etc.)
+      ALL_SOURCE_LINES=$(find "$SOURCE_FOR_COUNTING" -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" | grep -v "\.test\." | grep -v "\.spec\." | grep -v node_modules | xargs -I {} wc -l "{}" 2>/dev/null | awk '{sum += $1} END {print sum+0}')
+      
+      # Estimate coverable lines (roughly 44% of total lines, matching SonarQube's analysis)
+      ESTIMATED_COVERABLE_LINES=$(echo "scale=0; $ALL_SOURCE_LINES * 0.44" | bc 2>/dev/null || echo "$ALL_SOURCE_LINES")
+      
+      # SonarQube-style coverage: covered lines from LCOV / estimated total coverable lines
+      SONAR_STYLE_COVERAGE=$(echo "scale=2; $COVERED_LINES * 100 / $ESTIMATED_COVERABLE_LINES" | bc 2>/dev/null || echo "N/A")
+      
+      echo "📊 LCOV-only coverage: $COVERED_LINES/$TOTAL_LINES lines = $(echo "scale=2; $COVERED_LINES * 100 / $TOTAL_LINES" | bc)% (executed files only)"
+      echo "🎯 SonarQube-style coverage: $COVERED_LINES/$ESTIMATED_COVERABLE_LINES lines = ${SONAR_STYLE_COVERAGE}% (all project files)"
+      echo "📁 Coverage scope: $FILES_IN_LCOV/$TOTAL_SOURCE_FILES files have coverage data"
+      echo "📏 Total source lines: $ALL_SOURCE_LINES (estimated coverable: $ESTIMATED_COVERABLE_LINES)"
+      echo "💡 Using SonarQube methodology for $PROJECT_TYPE project"
+      
+      # Use SonarQube-style calculation for reporting
+      COVERAGE_PERCENT="$SONAR_STYLE_COVERAGE"
+    else
+      # Fallback to LCOV-only calculation
+      COVERAGE_PERCENT=$(echo "scale=2; $COVERED_LINES * 100 / $TOTAL_LINES" | bc 2>/dev/null || echo "N/A")
+      echo "📊 LCOV coverage calculation: $COVERED_LINES/$TOTAL_LINES lines = ${COVERAGE_PERCENT}%"
+    fi
+    ANALYSIS_STATUS="SUCCESS"
+  fi
+fi
+  
+# Fallback to JSON coverage files if LCOV not available
+if [ "$COVERAGE_PERCENT" = "N/A" ]; then
+  echo "⚠️  LCOV file not found, trying JSON coverage files..."
+  COVERAGE_FILES=(
+    "$REPO_PATH/frontend/coverage/coverage-summary.json"      # Vitest frontend
+    "$REPO_PATH/frontend/coverage/coverage-final.json"        # Vitest frontend
+    "$REPO_PATH/coverage/coverage-summary.json"               # Jest root
+    "$REPO_PATH/coverage/coverage-final.json"                 # Jest root
+    "$REPO_PATH/reports/coverage/coverage-summary.json"       # Jest reports (monolith projects)
+    "$REPO_PATH/reports/coverage/coverage-final.json"         # Jest reports (monolith projects)
+    "$REPO_PATH/coverage/reports/coverage-summary.json"       # Alternative Jest
+    "$REPO_PATH/vitest-coverage/coverage-summary.json"        # Alternative Vitest
+    "$REPO_PATH/jest-coverage/coverage-summary.json"          # Alternative Jest
+    "$REPO_PATH/test-coverage/coverage-summary.json"          # Generic coverage
+    "$REPO_PATH/test/coverage/coverage-summary.json"          # Alternative test directory
+  )
     
     for coverage_file in "${COVERAGE_FILES[@]}"; do
       if [ -f "$coverage_file" ]; then
@@ -452,7 +492,6 @@ if [ -d "$REPO_PATH/frontend" ]; then
       FAILED_TESTS=$(echo "$TEST_DATA" | jq -r '.numFailedTests // 0' 2>/dev/null)
     fi
   fi
-fi
 
 # Check if we got the test exit code from earlier
 if [ -n "$test_exit_code" ]; then
