@@ -6,6 +6,12 @@ reports/checkov-reports/*.json
 reports/trufflehog-reports/*.json
 reports/xeol-reports/*.json
 reports/clamav-reports/*.log
+grype-reports/
+trivy-reports/
+trufflehog-reports/
+xeol-reports/
+clamav-reports/
+checkov-reports/
 
 # Temporary files
 *.tmp
