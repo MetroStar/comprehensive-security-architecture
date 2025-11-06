@@ -9,14 +9,20 @@ $RED = "Red"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = Split-Path -Parent (Split-Path -Parent $ScriptDir)
-$DashboardPath = Join-Path $RepoRoot "reports\security-reports\dashboards\security-dashboard.html"
+# Check multiple possible dashboard locations
+$DashboardPaths = @(
+    (Join-Path $ScriptDir "security-reports\dashboards\security-dashboard.html"),
+    (Join-Path $RepoRoot "reports\security-reports\dashboards\security-dashboard.html"),
+    (Join-Path $RepoRoot "scripts\bash\security-reports\dashboards\security-dashboard.html")
+)
+$DashboardPath = $DashboardPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
 
 Write-Host "============================================" -ForegroundColor $WHITE
 Write-Host "🛡️  Security Dashboard Launcher" -ForegroundColor $WHITE
 Write-Host "============================================" -ForegroundColor $WHITE
 Write-Host ""
 
-if (Test-Path $DashboardPath) {
+if ($DashboardPath -and (Test-Path $DashboardPath)) {
     Write-Host "✅ Dashboard found: $DashboardPath" -ForegroundColor $GREEN
     Write-Host "🚀 Opening security dashboard..." -ForegroundColor $BLUE
     
@@ -37,7 +43,11 @@ if (Test-Path $DashboardPath) {
     Write-Host "• Professional security summaries"
     
 } else {
-    Write-Host "❌ Dashboard not found at: $DashboardPath" -ForegroundColor $RED
+    Write-Host "❌ Dashboard not found in any expected location" -ForegroundColor $RED
+    Write-Host "💡 Searched paths:" -ForegroundColor $BLUE
+    foreach ($path in $DashboardPaths) {
+        Write-Host "   • $path"
+    }
     Write-Host "💡 To regenerate the dashboard, run:" -ForegroundColor $BLUE
     Write-Host "   .\consolidate-security-reports.ps1"
 }

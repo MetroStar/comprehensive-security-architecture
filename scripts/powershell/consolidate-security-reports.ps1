@@ -85,17 +85,15 @@ function Consolidate-ToolReports {
 Write-Host "🔄 Consolidating security reports from all tools..." -ForegroundColor $BLUE
 Write-Host ""
 
-# Consolidate reports from each security tool
-$ReportsBaseDir = Join-Path $RepoRoot "reports"
-
-Consolidate-ToolReports "SonarQube" (Join-Path $ReportsBaseDir "sonar-reports") "*.json"
-Consolidate-ToolReports "TruffleHog" (Join-Path $ReportsBaseDir "trufflehog-reports") "*.json"
-Consolidate-ToolReports "ClamAV" (Join-Path $ReportsBaseDir "clamav-reports") "*.json"
-Consolidate-ToolReports "Helm" (Join-Path $ReportsBaseDir "helm-reports") "*.json"
-Consolidate-ToolReports "Checkov" (Join-Path $ReportsBaseDir "checkov-reports") "*.json"
-Consolidate-ToolReports "Trivy" (Join-Path $ReportsBaseDir "trivy-reports") "*.json"
-Consolidate-ToolReports "Grype" (Join-Path $ReportsBaseDir "grype-reports") "*.json"
-Consolidate-ToolReports "Xeol" (Join-Path $ReportsBaseDir "xeol-reports") "*.json"
+# Consolidate reports from each security tool - Updated paths to actual report locations
+Consolidate-ToolReports "SonarQube" (Join-Path $RepoRoot "reports\sonar-reports") "*.json"
+Consolidate-ToolReports "TruffleHog" (Join-Path $RepoRoot "trufflehog-reports") "*.json"
+Consolidate-ToolReports "ClamAV" (Join-Path $RepoRoot "clamav-reports") "*.json"
+Consolidate-ToolReports "Helm" (Join-Path $RepoRoot "helm-packages") "*.yaml"
+Consolidate-ToolReports "Checkov" (Join-Path $RepoRoot "checkov-reports") "*.json"
+Consolidate-ToolReports "Trivy" (Join-Path $RepoRoot "trivy-reports") "*.json"
+Consolidate-ToolReports "Grype" (Join-Path $RepoRoot "grype-reports") "*.json"
+Consolidate-ToolReports "Xeol" (Join-Path $RepoRoot "xeol-reports") "*.json"
 
 # Generate comprehensive security dashboard
 Write-Host "📈 Generating dynamic security dashboard..." -ForegroundColor $PURPLE
@@ -115,7 +113,7 @@ if ($PythonCmd) {
     
     if (Test-Path $PythonScript) {
         Write-Host "Using Python script to generate dynamic dashboard..." -ForegroundColor $CYAN
-        & $PythonCmd $PythonScript $ReportsBaseDir $DashboardFile
+        & $PythonCmd $PythonScript (Join-Path $RepoRoot "reports") $DashboardFile
     } else {
         Write-Host "⚠️  Python dashboard script not found: $PythonScript" -ForegroundColor $YELLOW
         Write-Host "Generating basic dashboard..." -ForegroundColor $YELLOW

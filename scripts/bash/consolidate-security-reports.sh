@@ -14,6 +14,8 @@ WHITE='\033[1;37m'
 NC='\033[0m'
 
 # Configuration
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 UNIFIED_DIR="./security-reports"
 TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
 REPORT_DATE=$(date)
@@ -375,22 +377,21 @@ echo -e "${BLUE}🔄 Consolidating security reports from all tools...${NC}"
 echo
 
 # Consolidate reports from each security tool
-consolidate_tool_reports "SonarQube" "./sonar-reports" "*.json"
-consolidate_tool_reports "TruffleHog" "./trufflehog-reports" "*.json"
-consolidate_tool_reports "ClamAV" "./clamav-reports" "*.json"
-consolidate_tool_reports "Helm" "./helm-reports" "*.json"
-consolidate_tool_reports "Checkov" "./checkov-reports" "*.json"
-consolidate_tool_reports "Trivy" "./trivy-reports" "*.json"
-consolidate_tool_reports "Grype" "./grype-reports" "*.json"
-consolidate_tool_reports "Xeol" "./xeol-reports" "*.json"
+consolidate_tool_reports "SonarQube" "$REPO_ROOT/reports/sonar-reports" "*.json"
+consolidate_tool_reports "TruffleHog" "$REPO_ROOT/trufflehog-reports" "*.json"
+consolidate_tool_reports "ClamAV" "$REPO_ROOT/clamav-reports" "*.json"
+consolidate_tool_reports "Helm" "$REPO_ROOT/helm-packages" "*.yaml"
+consolidate_tool_reports "Checkov" "$REPO_ROOT/checkov-reports" "*.json"
+consolidate_tool_reports "Trivy" "$REPO_ROOT/trivy-reports" "*.json"
+consolidate_tool_reports "Grype" "$REPO_ROOT/grype-reports" "*.json"
+consolidate_tool_reports "Xeol" "$REPO_ROOT/xeol-reports" "*.json"
 
 # Generate comprehensive security dashboard
 echo -e "${PURPLE}📈 Generating dynamic security dashboard...${NC}"
 
 # Use Python script to generate dashboard with real data
 if command -v python3 &> /dev/null; then
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    python3 "$(dirname "$SCRIPT_DIR")/generate-dynamic-dashboard.py" "$(pwd)/reports" "$UNIFIED_DIR/dashboards/security-dashboard.html"
+    python3 "$(dirname "$SCRIPT_DIR")/generate-dynamic-dashboard.py" "$REPO_ROOT/reports" "$UNIFIED_DIR/dashboards/security-dashboard.html"
 else
     echo -e "${YELLOW}⚠️  Python3 not found. Generating basic dashboard...${NC}"
     

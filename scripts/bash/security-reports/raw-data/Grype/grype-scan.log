@@ -1,0 +1,15 @@
+Grype Vulnerability Scan Log
+Timestamp: 11/05/2025 10:47:56
+Output Directory: .\grype-reports
+========================================
+[0000]  WARN no explicit name and version provided for directory source, deriving artifact ID from the given path (which is not ideal)
+Scan type: base-image
+Image: nginx:alpine
+Scan type: base-image
+Image: node:18-alpine
+Scan type: base-image
+Image: python:3.11-alpine
+Scan type: base-image
+Image: ubuntu:22.04
+Scan type: base-image
+Image: alpine:latest
