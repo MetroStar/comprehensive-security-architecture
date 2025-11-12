@@ -240,8 +240,8 @@ if ($ScanType -eq "directory") {
     
     Write-Host "   Running comprehensive IaC scan..."
     docker run --rm `
-        -e AWS_ACCESS_KEY_ID=$ASIATLUFOHFAKESBOZQX `
-        -e AWS_SECRET_ACCESS_KEY=$HpbdgHbhwsCL+SqH2QQ+SX3HIsNMvYk5eNNhP4iB `
+        -e AWS_ACCESS_KEY_ID=$ `
+        -e AWS_SECRET_ACCESS_KEY=$ `
         -e AWS_DEFAULT_REGION=$us-gov-west-1 `
         -v "${targetAbsPath}:/repo" `
         -v "${outputAbsPath}:/output" `
@@ -263,8 +263,8 @@ if ($ScanType -eq "directory") {
         $outputAbsPath = (Resolve-Path $OutputDir).Path
         
         docker run --rm `
-            -e AWS_ACCESS_KEY_ID=$ASIATLUFOHFAKESBOZQX `
-            -e AWS_SECRET_ACCESS_KEY=$HpbdgHbhwsCL+SqH2QQ+SX3HIsNMvYk5eNNhP4iB `
+            -e AWS_ACCESS_KEY_ID=$ `
+            -e AWS_SECRET_ACCESS_KEY=$ `
             -e AWS_DEFAULT_REGION=$us-gov-west-1 `
             -v "${targetAbsPath}:/repo" `
             -v "${outputAbsPath}:/output" `
@@ -282,8 +282,8 @@ if ($ScanType -eq "directory") {
     $outputAbsPath = (Resolve-Path $OutputDir).Path
     
     docker run --rm `
-        -e AWS_ACCESS_KEY_ID=$ASIATLUFOHFAKESBOZQX `
-        -e AWS_SECRET_ACCESS_KEY=$HpbdgHbhwsCL+SqH2QQ+SX3HIsNMvYk5eNNhP4iB `
+        -e AWS_ACCESS_KEY_ID=$ `
+        -e AWS_SECRET_ACCESS_KEY=$ `
         -e AWS_DEFAULT_REGION=$us-gov-west-1 `
         -v "${targetAbsPath}:/repo" `
         -v "${outputAbsPath}:/output" `
@@ -299,8 +299,8 @@ if ($ScanType -eq "directory") {
     $outputAbsPath = (Resolve-Path $OutputDir).Path
     
     docker run --rm `
-        -e AWS_ACCESS_KEY_ID=$ASIATLUFOHFAKESBOZQX `
-        -e AWS_SECRET_ACCESS_KEY=$HpbdgHbhwsCL+SqH2QQ+SX3HIsNMvYk5eNNhP4iB `
+        -e AWS_ACCESS_KEY_ID=$ `
+        -e AWS_SECRET_ACCESS_KEY=$ `
         -e AWS_DEFAULT_REGION=$us-gov-west-1 `
         -v "${currentAbsPath}:/repo" `
         -v "${outputAbsPath}:/output" `
