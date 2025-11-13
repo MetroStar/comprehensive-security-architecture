@@ -1,5 +1,5 @@
 Grype Vulnerability Scan Log
-Timestamp: Wed Nov  5 14:21:51 CST 2025
+Timestamp: Thu Nov 13 08:10:42 CST 2025
 Output Directory: ./grype-reports
 ========================================
 Scan type: base-image

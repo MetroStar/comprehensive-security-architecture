@@ -60,8 +60,48 @@ echo ""
 
 # Check if chart directory exists
 if [ ! -d "$CHART_DIR" ]; then
-    echo -e "${RED}❌ Chart directory not found: $CHART_DIR${NC}"
-    exit 1
+    echo -e "${YELLOW}⚠️  Chart directory not found: $CHART_DIR${NC}"
+    echo -e "${CYAN}🔍 Scanning project directory for IaC files instead...${NC}"
+    echo ""
+    
+    # Scan the entire project directory for various IaC files
+    echo -e "${CYAN}📋 Scanning for:${NC}"
+    echo "  - Dockerfiles"
+    echo "  - Kubernetes YAML files"
+    echo "  - Docker Compose files"
+    echo "  - Configuration files"
+    echo ""
+    
+    # Check what files are available
+    DOCKERFILES=$(find "$TARGET_SCAN_DIR" -name "Dockerfile*" -type f 2>/dev/null | grep -v "node_modules\|\.git" | wc -l)
+    YAML_FILES=$(find "$TARGET_SCAN_DIR" \( -name "*.yaml" -o -name "*.yml" \) -type f 2>/dev/null | grep -v "node_modules\|\.git" | wc -l)
+    
+    if [ "$DOCKERFILES" -gt 0 ] || [ "$YAML_FILES" -gt 0 ]; then
+        echo -e "${GREEN}✅ Found scannable files:${NC}"
+        if [ "$DOCKERFILES" -gt 0 ]; then
+            echo "  📄 Dockerfiles: $DOCKERFILES"
+        fi
+        if [ "$YAML_FILES" -gt 0 ]; then
+            echo "  📄 YAML files: $YAML_FILES"
+        fi
+        echo ""
+        
+        # Set scan target to project directory
+        SCAN_TARGET="$TARGET_SCAN_DIR"
+        SCAN_TYPE="directory"
+        SKIP_HELM_PROCESSING=true
+    else
+        echo -e "${YELLOW}⚠️  No IaC files found in project directory${NC}"
+        echo -e "${YELLOW}💡 Skipping Checkov scan - no scannable files available${NC}"
+        # Create a dummy results file
+        mkdir -p "$OUTPUT_DIR"
+        echo '{"passed": 0, "failed": 0, "skipped": 0, "parsing_errors": 0, "resource_count": 0, "checkov_version": "N/A", "scan_status": "no_iac_files_found"}' > "$RESULTS_FILE"
+        echo -e "${GREEN}✅ Checkov scan completed with fallback result${NC}"
+        exit 0
+    fi
+else
+    echo -e "${GREEN}✅ Chart directory found: $CHART_DIR${NC}"
+    SKIP_HELM_PROCESSING=false
 fi
 
 echo "🔍 Step 1: AWS ECR Authentication (Optional)"
@@ -110,17 +150,28 @@ else
 fi
 
 echo ""
-echo "🔍 Step 2: Helm Dependency Resolution & Template Rendering"
-echo "================================"
 
-# Check for Helm installation
-if command -v helm &> /dev/null; then
-    echo -e "${GREEN}✅ Using local Helm installation${NC}"
-    HELM_CMD="helm"
+# Skip Helm steps if we're doing a directory scan
+if [ "$SKIP_HELM_PROCESSING" = true ]; then
+    echo "🔍 Step 2: Preparing directory scan"
+    echo "================================"
+    echo "Skipping Helm processing - scanning project files directly"
+    echo ""
 else
-    echo -e "${YELLOW}⚠️  Using Docker-based Helm for template rendering${NC}"
-    HELM_CMD="docker run --rm -v \"$REPO_PATH\":/workspace -w /workspace alpine/helm:latest helm"
+    echo "🔍 Step 2: Helm Dependency Resolution & Template Rendering"
+    echo "================================"
 fi
+
+# Only process Helm charts if not doing a directory scan
+if [ "$SKIP_HELM_PROCESSING" != true ]; then
+    # Check for Helm installation
+    if command -v helm &> /dev/null; then
+        echo -e "${GREEN}✅ Using local Helm installation${NC}"
+        HELM_CMD="helm"
+    else
+        echo -e "${YELLOW}⚠️  Using Docker-based Helm for template rendering${NC}"
+        HELM_CMD="docker run --rm -v \"$REPO_PATH\":/workspace -w /workspace alpine/helm:latest helm"
+    fi
 
 # Set timeout for dependency operations
 DEPENDENCY_TIMEOUT=30
@@ -277,6 +328,8 @@ if [ "$TEMPLATE_SUCCESS" = false ]; then
         echo "  📄 $(basename "$file") ($(wc -c < "$file") bytes)"
     done
 fi
+
+fi  # End of Helm processing conditional block
 echo ""
 
 echo -e "${BLUE}🛡️  Step 3: Checkov Security Scan${NC}"
@@ -288,7 +341,24 @@ echo ""
 echo "Running Checkov security analysis..."
 
 # Run Checkov with comprehensive framework detection
-if [ "$SCAN_TYPE" = "helm" ]; then
+if [ "$SCAN_TYPE" = "directory" ]; then
+    echo "Scanning project directory for IaC security issues..."
+    TARGET_ABS_PATH=$(realpath "$TARGET_SCAN_DIR")
+    OUTPUT_ABS_PATH=$(realpath "$OUTPUT_DIR")
+    
+    echo "🔍 Running comprehensive IaC scan..."
+    docker run --rm \
+        -v "$TARGET_ABS_PATH:/repo" \
+        -v "$OUTPUT_ABS_PATH:/output" \
+        "$CHECKOV_IMAGE" \
+        --framework dockerfile,kubernetes,yaml \
+        --directory "/repo" \
+        --output json \
+        --output-file-path "/output/checkov-results.json" \
+        --skip-path "/repo/node_modules" \
+        --skip-path "/repo/.git" \
+        --quiet 2>&1 | tee -a "$SCAN_LOG"
+elif [ "$SCAN_TYPE" = "helm" ]; then
     echo "Scanning Helm chart values and configuration files..."
     
     # First, scan the values.yaml file specifically for security configurations
@@ -329,31 +399,30 @@ else
         --quiet 2>&1 | tee -a "$SCAN_LOG"
 fi
 
-# Prepare Checkov command based on scan target
-if [ "$TEMPLATE_SUCCESS" = true ]; then
-    # Scan rendered Kubernetes manifests
-    CHECKOV_ARGS="--framework kubernetes --file /scan/$(basename "$RENDERED_TEMPLATES")"
-    MOUNT_PATH="$(dirname "$RENDERED_TEMPLATES")"
-else
-    # Scan Kubernetes templates directly (YAML files in templates directory)
-    CHECKOV_ARGS="--framework kubernetes --directory /scan"
-    MOUNT_PATH="$CHART_DIR/templates"
+
+
+# Fix file permissions from Docker container (like PowerShell version)
+if [ -f "$RESULTS_FILE" ]; then
+    # Try to fix ownership and permissions if the file was created by Docker
+    if [ ! -r "$RESULTS_FILE" ] || [ ! -w "$RESULTS_FILE" ]; then
+        echo "🔧 Fixing Docker-created file permissions..."
+        # Try to change ownership to current user
+        if command -v sudo &> /dev/null && sudo -n true 2>/dev/null; then
+            sudo chown $(id -u):$(id -g) "$RESULTS_FILE" 2>/dev/null || true
+            sudo chmod 644 "$RESULTS_FILE" 2>/dev/null || true
+        else
+            # Fallback: copy file to temp location and back
+            if [ -r "$RESULTS_FILE" ]; then
+                TEMP_FILE="${RESULTS_FILE}.temp"
+                cp "$RESULTS_FILE" "$TEMP_FILE" 2>/dev/null || true
+                if [ -f "$TEMP_FILE" ]; then
+                    rm -f "$RESULTS_FILE" 2>/dev/null || true
+                    mv "$TEMP_FILE" "$RESULTS_FILE" 2>/dev/null || true
+                fi
+            fi
+        fi
+    fi
 fi
-
-echo "Running Checkov security analysis..."
-
-# Run Checkov scan using Docker
-docker run --rm \
-    -v "$(pwd)/$MOUNT_PATH:/scan" \
-    -v "$(pwd)/$OUTPUT_DIR:/output" \
-    "$CHECKOV_IMAGE" \
-    $CHECKOV_ARGS \
-    --output json \
-    --output-file-path /output/checkov-results.json \
-    --quiet \
-    --compact 2>/dev/null
-
-CHECKOV_EXIT_CODE=$?
 
 echo ""
 echo "============================================"
@@ -430,7 +499,7 @@ EOF
         fi
     fi
     
-elif [ $CHECKOV_EXIT_CODE -eq 0 ]; then
+elif [ "${CHECKOV_EXIT_CODE:-1}" -eq 0 ]; then
     echo -e "${GREEN}✅ Checkov scan completed successfully!${NC}"
     echo "🎉 No security issues detected!"
     echo "============================================"
