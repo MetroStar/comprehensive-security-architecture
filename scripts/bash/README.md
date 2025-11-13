@@ -35,11 +35,16 @@ Shell scripts for Linux, macOS, WSL, and Git Bash.
 ### Management & Utilities
 - `manage-dashboard-data.sh` - Interactive dashboard data management
 - `open-dashboard.sh` - Open security dashboard in browser
+- `open-compliance-dashboard.sh` - Open compliance dashboard for audit tracking
 - `force-refresh-dashboard.sh` - Force refresh dashboard with cache busting
 - `create-stub-dependencies.sh` - Create stub Helm dependencies
 - `resolve-helm-dependencies.sh` - Resolve Helm chart dependencies
 - `aws-ecr-helm-auth.sh` - AWS ECR authentication for Helm
 - `aws-ecr-helm-auth-guide.sh` - AWS ECR authentication guide
+
+### Audit & Compliance
+- `audit-logger.sh` - Centralized audit logging system
+- `compliance-logger.sh` - Generate compliance dashboard and CSV reports
 
 ### Demo & Testing
 - `demo-portable-scanner.sh` - Demonstrate portable scanner
@@ -79,6 +84,15 @@ chmod +x script-name.sh
 **Dashboard Management**
 ```bash
 ./manage-dashboard-data.sh
+./open-dashboard.sh              # Open main security dashboard
+./open-compliance-dashboard.sh   # Open compliance audit dashboard
+```
+
+**Audit & Compliance**
+```bash
+./audit-logger.sh               # Manual audit logging
+./compliance-logger.sh          # Generate compliance dashboard
+./open-compliance-dashboard.sh  # View compliance dashboard
 ```
 
 ## 📦 Prerequisites
