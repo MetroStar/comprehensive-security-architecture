@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Compliance Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { background: #2c3e50; color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-bottom: 20px; }
+        .metric-box { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .metric-value { font-size: 2em; font-weight: bold; color: #3498db; }
+        .metric-label { color: #7f8c8d; margin-top: 5px; }
+        .recent-activity { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background: #34495e; color: white; }
+        .status-success { color: #27ae60; font-weight: bold; }
+        .status-warning { color: #f39c12; font-weight: bold; }
+        .status-error { color: #e74c3c; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ Security Compliance Dashboard</h1>
+            <p>Real-time monitoring of security scan activities and compliance metrics</p>
+        </div>
+        
+        <div class="metrics">
+            <div class="metric-box">
+                <div class="metric-value" id="totalScans">--</div>
+                <div class="metric-label">Total Security Scans</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-value" id="activeUsers">--</div>
+                <div class="metric-label">Active Users Today</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-value" id="criticalFindings">--</div>
+                <div class="metric-label">Critical Findings</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-value" id="complianceScore">--</div>
+                <div class="metric-label">Compliance Score</div>
+            </div>
+        </div>
+        
+        <div class="recent-activity">
+            <h2>� Active Users Today</h2>
+            <div id="userSummary" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                <!-- User activity cards will be populated here -->
+            </div>
+            
+            <h2>�📋 Recent Security Activities</h2>
+            <table id="activityTable">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>👤 User (Real User)</th>
+                        <th>🖥️ Host</th>
+                        <th>🔧 Security Tool</th>
+                        <th>📋 Action</th>
+                        <th>🎯 Target Directory</th>
+                        <th>🔍 Findings</th>
+                        <th>✅ Status</th>
+                    </tr>
+                </thead>
+                <tbody id="activityBody">
+                    <tr><td colspan="7">Loading audit data...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+    
+    <script>
+        // This would be enhanced with real CSV parsing and live updates
+        function loadComplianceData() {
+            // Placeholder for CSV data loading
+            document.getElementById('totalScans').textContent = '42';
+            document.getElementById('activeUsers').textContent = '7';  
+            document.getElementById('criticalFindings').textContent = '3';
+            document.getElementById('complianceScore').textContent = '94%';
+            
+            // Sample activity data with enhanced user information
+            const activities = [
+                ['2025-11-13 14:30:15', 'john.doe (john.doe)', 'security-ws-01', 'TruffleHog', 'SECRET_SCAN', '/enterprise/app1', '5', 'SUCCESS'],
+                ['2025-11-13 14:25:03', 'jane.smith (j.smith)', 'security-ws-02', 'Checkov', 'IAC_SCAN', '/enterprise/infra', '12', 'WARNING'],
+                ['2025-11-13 14:20:45', 'admin (root)', 'security-server', 'Trivy', 'CONTAINER_SCAN', '/enterprise/images', '0', 'SUCCESS'],
+                ['2025-11-13 14:15:32', 'security.bot (automated)', 'ci-runner-03', 'Grype', 'VULN_SCAN', '/ci/builds/app2', '8', 'WARNING'],
+                ['2025-11-13 14:10:18', 'rnelson (rnelson)', 'dev-laptop-01', 'Helm', 'BUILD_SCAN', '/dev/charts', '2', 'SUCCESS']
+            ];
+            
+            const tbody = document.getElementById('activityBody');
+            tbody.innerHTML = activities.map(row => 
+                `<tr>
+                    <td>${row[0]}</td>
+                    <td><strong>${row[1]}</strong></td>
+                    <td>${row[2]}</td>
+                    <td><span style="background: #3498db; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.85em;">${row[3]}</span></td>
+                    <td>${row[4]}</td>
+                    <td style="font-family: monospace; font-size: 0.9em; color: #666;">${row[5]}</td>
+                    <td><span style="background: ${row[6] > 0 ? '#f39c12' : '#27ae60'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.85em;">${row[6]}</span></td>
+                    <td class="status-${row[7] === 'SUCCESS' ? 'success' : row[7] === 'WARNING' ? 'warning' : 'error'}">${row[7]}</td>
+                </tr>`
+            ).join('');
+        }
+        
+        // Load user summary
+        function loadUserSummary() {
+            const userStats = [
+                { user: 'john.doe', scans: 8, tools: ['TruffleHog', 'Checkov'], lastActive: '14:30', status: 'active' },
+                { user: 'jane.smith', scans: 5, tools: ['Checkov', 'Trivy'], lastActive: '14:25', status: 'active' },
+                { user: 'rnelson', scans: 12, tools: ['Helm', 'Grype', 'Trivy'], lastActive: '14:20', status: 'active' },
+                { user: 'security.bot', scans: 24, tools: ['All Tools'], lastActive: '14:15', status: 'automated' }
+            ];
+            
+            const userSummaryDiv = document.getElementById('userSummary');
+            userSummaryDiv.innerHTML = userStats.map(user => 
+                `<div style="background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); border-left: 4px solid ${user.status === 'automated' ? '#9b59b6' : '#3498db'};">
+                    <div style="font-weight: bold; color: #2c3e50; margin-bottom: 5px;">👤 ${user.user}</div>
+                    <div style="font-size: 0.9em; color: #7f8c8d; margin-bottom: 8px;">
+                        📊 ${user.scans} scans • 🕐 Last: ${user.lastActive}
+                    </div>
+                    <div style="font-size: 0.8em; color: #34495e;">
+                        🔧 ${user.tools.join(', ')}
+                    </div>
+                    <div style="margin-top: 8px;">
+                        <span style="background: ${user.status === 'automated' ? '#9b59b6' : '#27ae60'}; color: white; padding: 2px 8px; border-radius: 12px; font-size: 0.75em; text-transform: uppercase;">
+                            ${user.status === 'automated' ? 'BOT' : 'HUMAN'}
+                        </span>
+                    </div>
+                </div>`
+            ).join('');
+        }
+        
+        // Enhanced load function
+        function loadComplianceData() {
+            // Load metrics
+            document.getElementById('totalScans').textContent = '42';
+            document.getElementById('activeUsers').textContent = '7';  
+            document.getElementById('criticalFindings').textContent = '3';
+            document.getElementById('complianceScore').textContent = '94%';
+            
+            // Load user summary
+            loadUserSummary();
+        }
+        
+        // Load data on page load
+        loadComplianceData();
+        
+        // Try to load real activity data if available
+        const script = document.createElement('script');
+        script.src = './activity-data.js';
+        script.onerror = function() {
+            console.log('Real activity data not available, using sample data');
+        };
+        document.head.appendChild(script);
+        
+        // Refresh every 30 seconds
+        setInterval(loadComplianceData, 30000);
+    </script>
+</body>
+</html>

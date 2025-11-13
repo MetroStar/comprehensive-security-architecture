@@ -51,6 +51,7 @@ cd powershell
 
 ### Available Scripts
 - `open-dashboard.ps1` - Opens security dashboard
+- `open-compliance-dashboard.ps1` - Opens compliance dashboard for audit tracking
 - `force-refresh-dashboard.ps1` - Refreshes dashboard with cache busting
 - `test-desktop-default.ps1` - Tests default behavior
 - `demo-portable-scanner.ps1` - Scanner demonstration
@@ -58,6 +59,7 @@ cd powershell
 - `run-trufflehog-scan.ps1` - Secret detection
 - `analyze-clamav-results.ps1` - ClamAV results analysis
 - `create-stub-dependencies.ps1` - Helm stub creation
+- `compliance-logger.ps1` - PowerShell compliance logging
 - `Convert-AllScripts.ps1` - Conversion tracker tool
 
 ### Documentation
