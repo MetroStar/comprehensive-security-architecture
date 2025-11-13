@@ -69,12 +69,9 @@ comprehensive-security-architecture/
 │   ├── trivy-reports/
 │   ├── grype-reports/
 │   └── xeol-reports/
-├── documentation/             # Complete setup and architecture guides
-│   ├── SECURITY_AND_QUALITY_SETUP.md
-│   └── COMPREHENSIVE_SECURITY_ARCHITECTURE.md
-└── configuration/             # Configuration files and settings
-    ├── .env.sonar
-    └── package.json
+└── documentation/             # Complete setup and architecture guides
+    ├── SECURITY_AND_QUALITY_SETUP.md
+    └── COMPREHENSIVE_SECURITY_ARCHITECTURE.md
 ```
 
 ## 🚀 Quick Start
