@@ -82,29 +82,17 @@ EOF
                 
                 # Critical: Verified secrets
                 if [[ $verified_count -gt 0 ]]; then
-                    local critical_findings=$(echo "$verified_secrets" | jq --arg tool "TruffleHog" --arg scan_id "$scan_id" '
+                    local critical_findings=$(echo "$verified_secrets" | jq --arg tool "TruffleHog" '
                         [.[] | {
                             tool: $tool,
                             type: "verified_secret",
                             severity: "Critical",
                             detector: .DetectorName,
-                            file_path: .SourceMetadata.Data.Filesystem.file,
-                            line_number: .SourceMetadata.Data.Filesystem.line,
-                            description: ("CRITICAL: VERIFIED " + .DetectorName + " credentials - IMMEDIATE ACTION REQUIRED"),
-                            credential_type: .DetectorName,
+                            file: .SourceMetadata.Data.Filesystem.file,
+                            line: .SourceMetadata.Data.Filesystem.line,
+                            description: ("Verified " + .DetectorName + " credentials found"),
                             raw_secret: .Raw,
-                            redacted_secret: .Redacted,
-                            verified: .Verified,
-                            verification_error: .VerificationError,
-                            scan_location: ("scans/" + $scan_id + "/trufflehog/"),
-                            validation_steps: [
-                                "1. Check if credentials are still active",
-                                "2. Rotate credentials immediately",
-                                "3. Review access logs for unauthorized usage",
-                                "4. Remove from code and Git history"
-                            ],
-                            priority: "P0 - Critical",
-                            impact: "Full database access with verified working credentials"
+                            verified: .Verified
                         }]' 2>/dev/null || echo "[]")
                     
                     jq --argjson critical "$critical_findings" '
@@ -115,29 +103,16 @@ EOF
                 
                 # High: Private keys and database credentials
                 if [[ $private_key_count -gt 0 ]]; then
-                    local high_findings=$(echo "$private_keys" | jq --arg tool "TruffleHog" --arg scan_id "$scan_id" '
+                    local high_findings=$(echo "$private_keys" | jq --arg tool "TruffleHog" '
                         [.[] | {
                             tool: $tool,
                             type: "private_key",
                             severity: "High",
                             detector: .DetectorName,
-                            file_path: .SourceMetadata.Data.Filesystem.file,
-                            line_number: .SourceMetadata.Data.Filesystem.line,
-                            description: ("HIGH: Private key detected - " + (.DetectorName // "Unknown type")),
-                            key_type: (.DetectorName // "Unknown"),
-                            verified: .Verified,
-                            verification_error: .VerificationError,
-                            scan_location: ("scans/" + $scan_id + "/trufflehog/"),
-                            validation_steps: [
-                                "1. Identify key purpose and system access",
-                                "2. Generate new key pair if still in use",
-                                "3. Update systems with new public key",
-                                "4. Remove private key from repository",
-                                "5. Audit systems for unauthorized access"
-                            ],
-                            priority: "P1 - High",
-                            impact: "Potential unauthorized system access",
-                            remediation: "Remove immediately and rotate if active"
+                            file: .SourceMetadata.Data.Filesystem.file,
+                            line: .SourceMetadata.Data.Filesystem.line,
+                            description: "Private key found in code",
+                            verified: .Verified
                         }]' 2>/dev/null || echo "[]")
                     
                     jq --argjson high "$high_findings" '
@@ -151,28 +126,16 @@ EOF
                 local unverified_postgres_count=$(echo "$unverified_postgres" | jq 'length' 2>/dev/null || echo "0")
                 
                 if [[ $unverified_postgres_count -gt 0 ]]; then
-                    local medium_findings=$(echo "$unverified_postgres" | jq --arg tool "TruffleHog" --arg scan_id "$scan_id" '
+                    local medium_findings=$(echo "$unverified_postgres" | jq --arg tool "TruffleHog" '
                         [.[] | {
                             tool: $tool,
                             type: "database_credential",
                             severity: "Medium",
                             detector: .DetectorName,
-                            file_path: .SourceMetadata.Data.Filesystem.file,
-                            line_number: .SourceMetadata.Data.Filesystem.line,
-                            description: ("MEDIUM: " + .DetectorName + " credentials found (unverified)"),
-                            credential_type: .DetectorName,
-                            raw_secret: .Raw,
-                            verified: .Verified,
-                            verification_error: .VerificationError,
-                            scan_location: ("scans/" + $scan_id + "/trufflehog/"),
-                            validation_steps: [
-                                "1. Test if credentials are valid",
-                                "2. Check if database/service exists",
-                                "3. Remove if test credentials",
-                                "4. Rotate if production credentials"
-                            ],
-                            priority: "P2 - Medium",
-                            impact: "Potential database access if credentials are valid"
+                            file: .SourceMetadata.Data.Filesystem.file,
+                            line: .SourceMetadata.Data.Filesystem.line,
+                            description: "Database credentials found (unverified)",
+                            verified: .Verified
                         }]' 2>/dev/null || echo "[]")
                     
                     jq --argjson medium "$medium_findings" '
@@ -213,54 +176,30 @@ EOF
                 tools_analyzed+=("Grype-$scan_type")
                 
                 # Extract findings by severity
-                local critical_vulns=$(jq -r --arg tool "Grype-$scan_type" --arg scan_id "$scan_id" --arg grype_file "$grype_file" '
+                local critical_vulns=$(jq -r --arg tool "Grype-$scan_type" '
                     [.matches[]? | select(.vulnerability.severity == "Critical") | {
                         tool: $tool,
                         type: "vulnerability",
                         severity: .vulnerability.severity,
-                        vulnerability_id: .vulnerability.id,
-                        package_name: .artifact.name,
-                        package_version: .artifact.version,
-                        package_type: .artifact.type,
+                        id: .vulnerability.id,
+                        package: .artifact.name,
+                        version: .artifact.version,
                         description: .vulnerability.description,
                         cvss_score: (.vulnerability.cvss[0].metrics.baseScore // "N/A"),
-                        fix_available: (if .vulnerability.fix.versions then "Yes" else "No" end),
-                        fixed_versions: (.vulnerability.fix.versions // []),
-                        scan_location: ("scans/" + $scan_id + "/grype/"),
-                        result_file: $grype_file,
-                        validation_steps: [
-                            "1. Verify package is actually in use",
-                            "2. Check if vulnerability affects your usage",
-                            "3. Update to fixed version if available",
-                            "4. Apply workarounds if no fix available"
-                        ],
-                        priority: "P0 - Critical",
-                        impact: "Critical vulnerability in dependency"
+                        fix_available: (if .vulnerability.fix.versions then "Yes" else "No" end)
                     }]' "$grype_file" 2>/dev/null || echo "[]")
                 
-                local high_vulns=$(jq -r --arg tool "Grype-$scan_type" --arg scan_id "$scan_id" --arg grype_file "$grype_file" '
+                local high_vulns=$(jq -r --arg tool "Grype-$scan_type" '
                     [.matches[]? | select(.vulnerability.severity == "High") | {
                         tool: $tool,
                         type: "vulnerability",
                         severity: .vulnerability.severity,
-                        vulnerability_id: .vulnerability.id,
-                        package_name: .artifact.name,
-                        package_version: .artifact.version,
-                        package_type: .artifact.type,
+                        id: .vulnerability.id,
+                        package: .artifact.name,
+                        version: .artifact.version,
                         description: .vulnerability.description,
                         cvss_score: (.vulnerability.cvss[0].metrics.baseScore // "N/A"),
-                        fix_available: (if .vulnerability.fix.versions then "Yes" else "No" end),
-                        fixed_versions: (.vulnerability.fix.versions // []),
-                        scan_location: ("scans/" + $scan_id + "/grype/"),
-                        result_file: $grype_file,
-                        validation_steps: [
-                            "1. Verify package is actually in use",
-                            "2. Check if vulnerability affects your usage",
-                            "3. Update to fixed version if available",
-                            "4. Consider alternative packages if no fix"
-                        ],
-                        priority: "P1 - High",
-                        impact: "High severity vulnerability in dependency"
+                        fix_available: (if .vulnerability.fix.versions then "Yes" else "No" end)
                     }]' "$grype_file" 2>/dev/null || echo "[]")
                 
                 local medium_vulns=$(jq -r --arg tool "Grype-$scan_type" '
