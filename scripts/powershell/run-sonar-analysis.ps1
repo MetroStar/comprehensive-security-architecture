@@ -1,6 +1,13 @@
 # SonarQube Analysis Script - PowerShell Version
 # Automatically sources .env.sonar if it exists
 
+param(
+    [Parameter(Position=0)]
+    [string]$Mode = "full"
+)
+
+$ErrorActionPreference = "Continue"
+
 # Initialize scan environment using scan directory approach
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
@@ -25,13 +32,6 @@ else {
     $TIMESTAMP = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
     $SCAN_ID = "${TARGET_NAME}_${USERNAME}_${TIMESTAMP}"
 }
-
-param(
-    [Parameter(Position=0)]
-    [string]$Mode = "full"
-)
-
-$ErrorActionPreference = "Continue"
 
 # Support target directory scanning
 $RepoPath = if ($env:TARGET_DIR) { $env:TARGET_DIR } else { Get-Location }

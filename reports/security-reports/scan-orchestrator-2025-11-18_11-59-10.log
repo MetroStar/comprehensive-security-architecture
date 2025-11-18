@@ -1,0 +1,31 @@
+2025-11-18 11:59:10 [INFO] === Security Scan Orchestrator Started ===
+2025-11-18 11:59:10 [INFO] Target Directory: C:\Users\ronni\OneDrive\Desktop\Projects\SRTM-tool
+2025-11-18 11:59:11 [INFO] Scan Type: quick
+2025-11-18 11:59:11 [INFO] Parallel Execution: False
+2025-11-18 11:59:11 [INFO] Exported TARGET_DIR=C:\Users\ronni\OneDrive\Desktop\Projects\SRTM-tool
+2025-11-18 11:59:11 [INFO] Checking Docker daemon status
+2025-11-18 11:59:11 [INFO] Docker version: Docker version 28.4.0, build d8eb465
+2025-11-18 11:59:11 [INFO] Docker daemon is running
+2025-11-18 11:59:12 [INFO] Directory size: 622.77 MB, Files: 34441
+2025-11-18 11:59:12 [INFO] Node.js project detected: srtm-tool
+2025-11-18 11:59:12 [INFO] Docker project detected
+2025-11-18 11:59:12 [INFO] Git repository detected
+2025-11-18 11:59:12 [INFO] Starting quick scan
+2025-11-18 11:59:12 [INFO] Starting scan: TruffleHog Secret Detection
+2025-11-18 11:59:12 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-trufflehog-scan.ps1
+2025-11-18 12:00:23 [INFO] TruffleHog Secret Detection completed successfully
+2025-11-18 12:00:23 [INFO] Starting scan: ClamAV Antivirus Scan
+2025-11-18 12:00:23 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-clamav-scan.ps1
+2025-11-18 12:13:04 [INFO] ClamAV Antivirus Scan completed successfully
+2025-11-18 12:13:04 [INFO] Starting scan: Grype Vulnerability Scanning
+2025-11-18 12:13:04 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-grype-scan.ps1
+2025-11-18 12:13:04 [INFO] Grype Vulnerability Scanning completed successfully
+2025-11-18 12:13:04 [INFO] Starting scan: Trivy Security Analysis
+2025-11-18 12:13:04 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-trivy-scan.ps1
+2025-11-18 12:13:04 [INFO] Trivy Security Analysis completed successfully
+2025-11-18 12:13:05 [INFO] Starting report consolidation
+2025-11-18 12:13:05 [INFO] Reports consolidated successfully
+2025-11-18 12:13:05 [INFO] === Security Scan Orchestrator Completed ===
+2025-11-18 12:13:05 [INFO] Total Duration: 13.9m
+2025-11-18 12:13:05 [INFO] Successful: 4, Failed: 0, Skipped: 0
+2025-11-18 12:13:05 [INFO] Reports location: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\reports\security-reports

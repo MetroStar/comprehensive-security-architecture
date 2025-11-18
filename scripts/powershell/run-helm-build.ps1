@@ -1,6 +1,13 @@
 # Helm Build and Package Script - PowerShell Version
 # Builds, validates, and packages Helm charts with comprehensive checks
 
+param(
+    [Parameter(Position=0)]
+    [string]$ChartPath = ""
+)
+
+$ErrorActionPreference = "Continue"
+
 # Initialize scan environment using scan directory approach
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
@@ -25,16 +32,6 @@ else {
     $TIMESTAMP = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
     $SCAN_ID = "${TARGET_NAME}_${USERNAME}_${TIMESTAMP}"
 }
-
-param(
-    [Parameter(Position=0)]
-    [string]$ChartPath = "",
-    [Parameter(Position=1)]
-    [string]# Configuration
-# $OUTPUT_DIR set by Initialize-ScanEnvironment
-)
-
-$ErrorActionPreference = "Continue"
 
 # Configuration - Support target directory scanning
 $RepoPath = if ($env:TARGET_DIR) { $env:TARGET_DIR } else { Get-Location }

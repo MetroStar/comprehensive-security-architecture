@@ -1,0 +1,61 @@
+2025-11-18 12:45:02 [INFO] === Security Scan Orchestrator Started ===
+2025-11-18 12:45:02 [INFO] Target Directory: C:\Users\ronni\OneDrive\Desktop\Projects\SRTM-tool
+2025-11-18 12:45:02 [INFO] Scan Type: full
+2025-11-18 12:45:02 [INFO] Parallel Execution: False
+2025-11-18 12:45:02 [INFO] Exported TARGET_DIR=C:\Users\ronni\OneDrive\Desktop\Projects\SRTM-tool
+2025-11-18 12:45:02 [INFO] Checking Docker daemon status
+2025-11-18 12:45:02 [INFO] Docker version: Docker version 28.4.0, build d8eb465
+2025-11-18 12:45:02 [INFO] Docker daemon is running
+2025-11-18 12:45:03 [INFO] Directory size: 622.77 MB, Files: 34441
+2025-11-18 12:45:03 [INFO] Node.js project detected: srtm-tool
+2025-11-18 12:45:04 [INFO] Docker project detected
+2025-11-18 12:45:04 [INFO] Git repository detected
+2025-11-18 12:45:04 [INFO] Starting full scan
+2025-11-18 12:45:04 [INFO] Starting scan: SonarQube Analysis
+2025-11-18 12:45:04 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-sonar-analysis.ps1
+2025-11-18 12:45:48 [WARN] SonarQube Analysis completed with warnings (exit code: 1)
+2025-11-18 12:45:48 [INFO] Starting scan: TruffleHog Filesystem
+2025-11-18 12:45:48 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-trufflehog-scan.ps1
+2025-11-18 12:46:57 [INFO] TruffleHog Filesystem completed successfully
+2025-11-18 12:46:57 [INFO] Starting scan: ClamAV Antivirus Scan
+2025-11-18 12:46:58 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-clamav-scan.ps1
+2025-11-18 13:00:24 [INFO] ClamAV Antivirus Scan completed successfully
+2025-11-18 13:00:24 [INFO] Starting scan: Helm Chart Build
+2025-11-18 13:00:24 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-helm-build.ps1
+2025-11-18 13:00:24 [ERROR] Helm Chart Build failed: At C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-helm-build.ps1:32 char:5
++     [Parameter(Position=1)]
++     ~~~~~~~~~~~~~~~~~~~~~~~
+Unexpected attribute 'Parameter'.
+2025-11-18 13:00:24 [INFO] Starting scan: Checkov IaC Security
+2025-11-18 13:00:24 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-checkov-scan.ps1
+2025-11-18 13:00:25 [INFO] Checkov IaC Security completed successfully
+2025-11-18 13:00:25 [INFO] Starting scan: Grype Filesystem
+2025-11-18 13:00:25 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-grype-scan.ps1
+2025-11-18 13:00:25 [INFO] Grype Filesystem completed successfully
+2025-11-18 13:00:25 [INFO] Starting scan: Grype Container Images
+2025-11-18 13:00:25 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-grype-scan.ps1
+2025-11-18 13:00:25 [INFO] Grype Container Images completed successfully
+2025-11-18 13:00:25 [INFO] Starting scan: Grype Base Images
+2025-11-18 13:00:25 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-grype-scan.ps1
+2025-11-18 13:00:25 [INFO] Grype Base Images completed successfully
+2025-11-18 13:00:25 [INFO] Starting scan: Trivy Filesystem
+2025-11-18 13:00:25 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-trivy-scan.ps1
+2025-11-18 13:00:25 [INFO] Trivy Filesystem completed successfully
+2025-11-18 13:00:25 [INFO] Starting scan: Trivy Container Images
+2025-11-18 13:00:25 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-trivy-scan.ps1
+2025-11-18 13:00:25 [INFO] Trivy Container Images completed successfully
+2025-11-18 13:00:25 [INFO] Starting scan: Trivy Base Images
+2025-11-18 13:00:25 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-trivy-scan.ps1
+2025-11-18 13:00:25 [INFO] Trivy Base Images completed successfully
+2025-11-18 13:00:25 [INFO] Starting scan: Trivy Kubernetes
+2025-11-18 13:00:25 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-trivy-scan.ps1
+2025-11-18 13:00:25 [INFO] Trivy Kubernetes completed successfully
+2025-11-18 13:00:25 [INFO] Starting scan: Xeol EOL Detection
+2025-11-18 13:00:25 [INFO] Script validated: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\scripts\powershell\run-xeol-scan.ps1
+2025-11-18 13:00:25 [INFO] Xeol EOL Detection completed successfully
+2025-11-18 13:00:25 [INFO] Starting report consolidation
+2025-11-18 13:00:26 [INFO] Reports consolidated successfully
+2025-11-18 13:00:26 [INFO] === Security Scan Orchestrator Completed ===
+2025-11-18 13:00:26 [INFO] Total Duration: 15.4m
+2025-11-18 13:00:26 [INFO] Successful: 11, Failed: 2, Skipped: 0
+2025-11-18 13:00:26 [INFO] Reports location: C:\Users\ronni\OneDrive\Desktop\Projects\comprehensive-security-architecture\reports\security-reports
