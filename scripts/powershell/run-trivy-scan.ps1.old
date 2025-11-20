@@ -1,9 +1,9 @@
-# Grype Multi-Target Vulnerability Scanner
-# Advanced container image and filesystem vulnerability scanning with SBOM generation
+# Trivy Multi-Target Vulnerability Scanner
+# Comprehensive container image, Kubernetes, and filesystem security scanning
 
 param(
     [Parameter(Position=0)]
-    [ValidateSet("filesystem", "images", "base", "all")]
+    [ValidateSet("filesystem", "images", "base", "kubernetes", "all")]
     [string]$ScanMode = "all"
 )
 
@@ -15,8 +15,8 @@ $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 # Source the scan directory template
 . "$ScriptDir\Scan-Directory-Template.ps1"
 
-# Initialize scan environment for grype
-$scanEnv = Initialize-ScanEnvironment -ToolName "grype"
+# Initialize scan environment for trivy
+$scanEnv = Initialize-ScanEnvironment -ToolName "trivy"
 
 # Extract scan information
 if ($env:SCAN_ID) {
@@ -50,7 +50,7 @@ $CYAN = "Cyan"
 $WHITE = "White"
 
 Write-Host "============================================" -ForegroundColor $WHITE
-Write-Host "Grype Multi-Target Vulnerability Scanner" -ForegroundColor $WHITE
+Write-Host "Trivy Multi-Target Security Scanner" -ForegroundColor $WHITE
 Write-Host "============================================" -ForegroundColor $WHITE
 Write-Host "Repository: $RepoPath"
 Write-Host "Output Directory: $OUTPUT_DIR"
@@ -62,7 +62,7 @@ Write-Host ""
 
 # Initialize scan log
 @"
-Grype Vulnerability Scan Log
+Trivy Security Scan Log
 Timestamp: $Timestamp
 Output Directory: $OUTPUT_DIR
 ========================================
@@ -72,13 +72,15 @@ Write-Host "Output Directory: " -NoNewline
 Write-Host $OUTPUT_DIR -ForegroundColor $BLUE
 Write-Host "Scan Log: " -NoNewline
 Write-Host $SCAN_LOG -ForegroundColor $BLUE
+Write-Host "Timestamp: " -NoNewline
+Write-Host $Timestamp -ForegroundColor $CYAN
 Write-Host ""
 
 # Function to check Docker
 function Test-Docker {
     if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
         Write-Host "  Docker not found" -ForegroundColor $RED
-        Write-Host "Please install Docker to use Grype vulnerability scanning."
+        Write-Host "Please install Docker to use Trivy security scanning."
         exit 1
     }
     
@@ -86,26 +88,24 @@ function Test-Docker {
         docker info | Out-Null
     } catch {
         Write-Host "  Docker daemon not running" -ForegroundColor $RED
-        Write-Host "Please start Docker daemon before running Grype scan."
+        Write-Host "Please start Docker daemon before running Trivy scan."
         exit 1
     }
 }
 
-Write-Host "   Docker and Grype Information:" -ForegroundColor $BLUE
+Write-Host "   Docker and Trivy Information:" -ForegroundColor $BLUE
 Write-Host "Docker version:"
 docker --version
-Write-Host "Pulling Grype and Syft images..."
-docker pull anchore/grype:latest
-docker pull anchore/syft:latest
+Write-Host "Pulling Trivy image..."
+docker pull aquasec/trivy:latest
 Write-Host ""
 
 # Function to scan Docker image
-function Invoke-GrypeImageScan {
+function Invoke-TrivyImageScan {
     param(
         [string]$ImageName,
         [string]$ScanType,
-        [string]$OutputFile,
-        [string]$SbomFile
+        [string]$OutputFile
     )
     
     Write-Host "   Scanning Docker image: " -NoNewline -ForegroundColor $CYAN
@@ -113,64 +113,58 @@ function Invoke-GrypeImageScan {
     "Scan type: $ScanType" | Out-File -FilePath $SCAN_LOG -Append
     "Image: $ImageName" | Out-File -FilePath $SCAN_LOG -Append
     
-    Write-Host "   Generating Software Bill of Materials (SBOM)..."
+    $outputPath = Join-Path $OUTPUT_DIR $OutputFile
     docker run --rm `
         -v /var/run/docker.sock:/var/run/docker.sock `
-        -v "${PWD}/${OUTPUT_DIR}:/output" `
-        anchore/grype:latest `
-        $ImageName `
-        -o json `
-        --file "/output/$OutputFile" `
-        --add-cpes-if-none `
-        --by-cve 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append | Out-Null
+        -v "${PWD}/${OutputDir}:/output" `
+        aquasec/trivy:latest image `
+        --format json `
+        --output "/output/$OutputFile" `
+        --severity HIGH,CRITICAL `
+        $ImageName 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append | Out-Null
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  Image scan completed" -ForegroundColor $GREEN
-        
-        Write-Host "   Generating detailed SBOM..."
-        docker run --rm `
-            -v /var/run/docker.sock:/var/run/docker.sock `
-            -v "${PWD}/${OUTPUT_DIR}:/output" `
-            anchore/syft:latest `
-            $ImageName `
-            -o spdx-json="/output/$SbomFile" 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append | Out-Null
+        "Image scan completed successfully" | Out-File -FilePath $SCAN_LOG -Append
     } else {
         Write-Host "    Image scan completed with warnings" -ForegroundColor $YELLOW
+        "Image scan completed with warnings" | Out-File -FilePath $SCAN_LOG -Append
     }
 }
 
 # Function to scan container images
 function Invoke-ContainerImageScan {
-    Write-Host "     Step 2: Container Image Vulnerability Scan" -ForegroundColor $PURPLE
-    Write-Host "=============================================="
+    Write-Host "     Step 2: Container Image Security Scan" -ForegroundColor $PURPLE
+    Write-Host "=========================================="
     
     $DockerFiles = Get-ChildItem -Path . -Filter "Dockerfile*" -File -ErrorAction SilentlyContinue
     
     if ($DockerFiles.Count -gt 0) {
         Write-Host "   Found $($DockerFiles.Count) Docker file(s): $($DockerFiles.Name -join ', ')"
+        "Found Docker files: $($DockerFiles.Name -join ', ')" | Out-File -FilePath $SCAN_LOG -Append
         
         foreach ($dockerfile in $DockerFiles) {
             Write-Host "   Processing Docker file: $($dockerfile.Name)"
             
             $CleanName = $dockerfile.BaseName.ToLower() -replace '\.', '-'
-            $ImageName = "advana-marketplace:${CleanName}-grype-scan"
+            $ImageName = "advana-marketplace:${CleanName}-trivy-scan"
             
-            Write-Host "   Building image from $($dockerfile.Name) for vulnerability scanning..."
+            Write-Host "   Building image from $($dockerfile.Name) for security scanning..."
             docker build -f $dockerfile.FullName -t $ImageName . 2>&1 | Out-File -FilePath $SCAN_LOG -Append
             
             if ($LASTEXITCODE -eq 0) {
                 Write-Host "  Image built successfully from $($dockerfile.Name)" -ForegroundColor $GREEN
-                Write-Host "   Scanning built image for vulnerabilities..."
+                Write-Host "   Scanning built image for security vulnerabilities..."
                 
-                Invoke-GrypeImageScan -ImageName $ImageName -ScanType "container-${CleanName}" `
-                    -OutputFile "grype-${CleanName}-results.json" -SbomFile "sbom-${CleanName}.json"
+                Invoke-TrivyImageScan -ImageName $ImageName -ScanType "container-${CleanName}" -OutputFile "trivy-${CleanName}-results.json"
                 
                 docker rmi $ImageName 2>&1 | Out-File -FilePath $SCAN_LOG -Append
             } else {
                 Write-Host "  Failed to build image from $($dockerfile.Name)" -ForegroundColor $RED
+                "Failed to build image from $($dockerfile.Name)" | Out-File -FilePath $SCAN_LOG -Append
             }
         }
-        Write-Host "  Built container image vulnerability scanning completed" -ForegroundColor $GREEN
+        Write-Host "  Built container image security scanning completed" -ForegroundColor $GREEN
     } else {
         Write-Host "    No Docker files found" -ForegroundColor $YELLOW
     }
@@ -180,7 +174,7 @@ function Invoke-ContainerImageScan {
 
 # Function to scan base images
 function Invoke-BaseImageScan {
-    Write-Host "   Scanning common base images for vulnerabilities..."
+    Write-Host "   Scanning common base images for security vulnerabilities..."
     
     $BaseImages = @("nginx:alpine", "node:18-alpine", "python:3.11-alpine", "ubuntu:22.04", "alpine:latest")
     
@@ -196,32 +190,61 @@ function Invoke-BaseImageScan {
         }
         
         $SafeImageName = $image -replace '[:/]', '-'
-        Invoke-GrypeImageScan -ImageName $image -ScanType "base-image" `
-            -OutputFile "grype-base-$SafeImageName-results.json" -SbomFile "sbom-base-$SafeImageName.json"
+        Invoke-TrivyImageScan -ImageName $image -ScanType "base-image" -OutputFile "trivy-base-$SafeImageName-results.json"
         
-        Write-Host "  Base image $image vulnerability scan completed" -ForegroundColor $GREEN
+        Write-Host "  Base image $image security scan completed" -ForegroundColor $GREEN
     }
 }
 
 # Function to scan filesystem
 function Invoke-FilesystemScan {
-    param([string]$TargetDir = ".", [string]$OutputFile = "grype-filesystem-results.json")
+    param([string]$TargetDir = ".", [string]$OutputFile = "trivy-filesystem-results.json")
     
     Write-Host "   Scanning filesystem: " -NoNewline -ForegroundColor $CYAN
     Write-Host $TargetDir -ForegroundColor $YELLOW
+    "Filesystem scan target: $TargetDir" | Out-File -FilePath $SCAN_LOG -Append
     
     docker run --rm `
         -v "${PWD}:/workspace" `
-        -v "${PWD}/${OUTPUT_DIR}:/output" `
-        anchore/grype:latest `
-        dir:"/workspace/$TargetDir" `
-        -o json `
-        --file "/output/$OutputFile" 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append | Out-Null
+        -v "${PWD}/${OutputDir}:/output" `
+        aquasec/trivy:latest fs `
+        --format json `
+        --output "/output/$OutputFile" `
+        --severity HIGH,CRITICAL `
+        "/workspace/$TargetDir" 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append | Out-Null
     
     if ($LASTEXITCODE -eq 0) {
         Write-Host "  Filesystem scan completed" -ForegroundColor $GREEN
     } else {
         Write-Host "    Filesystem scan completed with warnings" -ForegroundColor $YELLOW
+    }
+}
+
+# Function to scan Kubernetes
+function Invoke-KubernetesScan {
+    param([string]$TargetDir = "./chart", [string]$OutputFile = "trivy-kubernetes-results.json")
+    
+    Write-Host "   Scanning Kubernetes manifests: " -NoNewline -ForegroundColor $CYAN
+    Write-Host $TargetDir -ForegroundColor $YELLOW
+    
+    if (-not (Test-Path $TargetDir)) {
+        Write-Host "    Kubernetes directory not found: $TargetDir" -ForegroundColor $YELLOW
+        return
+    }
+    
+    docker run --rm `
+        -v "${PWD}:/workspace" `
+        -v "${PWD}/${OutputDir}:/output" `
+        aquasec/trivy:latest config `
+        --format json `
+        --output "/output/$OutputFile" `
+        --severity HIGH,CRITICAL `
+        "/workspace/$TargetDir" 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append | Out-Null
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "  Kubernetes scan completed" -ForegroundColor $GREEN
+    } else {
+        Write-Host "    Kubernetes scan completed with warnings" -ForegroundColor $YELLOW
     }
 }
 
@@ -241,16 +264,21 @@ switch ($ScanMode) {
         Write-Host "Running base image scan only..." -ForegroundColor $CYAN
         Invoke-BaseImageScan
     }
+    "kubernetes" {
+        Write-Host "Running Kubernetes scan only..." -ForegroundColor $CYAN
+        Invoke-KubernetesScan
+    }
     "all" {
-        Write-Host "Running complete Grype vulnerability scan..." -ForegroundColor $CYAN
+        Write-Host "Running complete Trivy security scan..." -ForegroundColor $CYAN
         Invoke-FilesystemScan
         Invoke-ContainerImageScan
+        Invoke-KubernetesScan
     }
 }
 
 Write-Host ""
 Write-Host "============================================" -ForegroundColor $GREEN
-Write-Host "Grype Vulnerability Scan Complete" -ForegroundColor $GREEN
+Write-Host "Trivy Security Scan Complete" -ForegroundColor $GREEN
 Write-Host "============================================" -ForegroundColor $GREEN
 Write-Host "Results saved to: $OUTPUT_DIR" -ForegroundColor $CYAN
 Write-Host "Scan log: $SCAN_LOG" -ForegroundColor $CYAN

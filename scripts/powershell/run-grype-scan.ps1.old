@@ -116,7 +116,7 @@ function Invoke-GrypeImageScan {
     Write-Host "   Generating Software Bill of Materials (SBOM)..."
     docker run --rm `
         -v /var/run/docker.sock:/var/run/docker.sock `
-        -v "${PWD}/${OUTPUT_DIR}:/output" `
+        -v "${PWD}/${OutputDir}:/output" `
         anchore/grype:latest `
         $ImageName `
         -o json `
@@ -130,7 +130,7 @@ function Invoke-GrypeImageScan {
         Write-Host "   Generating detailed SBOM..."
         docker run --rm `
             -v /var/run/docker.sock:/var/run/docker.sock `
-            -v "${PWD}/${OUTPUT_DIR}:/output" `
+            -v "${PWD}/${OutputDir}:/output" `
             anchore/syft:latest `
             $ImageName `
             -o spdx-json="/output/$SbomFile" 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append | Out-Null
@@ -212,7 +212,7 @@ function Invoke-FilesystemScan {
     
     docker run --rm `
         -v "${PWD}:/workspace" `
-        -v "${PWD}/${OUTPUT_DIR}:/output" `
+        -v "${PWD}/${OutputDir}:/output" `
         anchore/grype:latest `
         dir:"/workspace/$TargetDir" `
         -o json `

@@ -35,6 +35,25 @@ $ScriptsRoot = Split-Path -Parent $ScriptDir
 $RepoRoot = Split-Path -Parent $ScriptsRoot
 $Timestamp = Get-Date -Format "yyyy-MM-dd_HH-mm-ss"
 
+# Generate SCAN_ID and setup scan directory
+$TargetName = if ($TargetDir) { Split-Path -Leaf $TargetDir } else { "unknown" }
+$Username = $env:USERNAME
+$ScanId = "${TargetName}_${Username}_${Timestamp}"
+
+# Setup centralized scan directory
+$ScansRoot = Join-Path $RepoRoot "scans"
+$ScanDir = Join-Path $ScansRoot $ScanId
+
+# Create scan directory
+if (-not (Test-Path $ScanDir)) {
+    New-Item -ItemType Directory -Path $ScanDir -Force | Out-Null
+}
+
+# Export environment variables for child scripts
+$env:SCAN_ID = $ScanId
+$env:SCAN_DIR = $ScanDir
+$env:TARGET_DIR = $TargetDir
+
 # Tracking variables
 $script:ScanStartTime = Get-Date
 $script:TotalScans = 0
@@ -341,7 +360,9 @@ $TargetDir = (Resolve-Path $TargetDir).Path
 Write-Section "🛡️  Target-Aware Security Scan Orchestrator v2.0"
 Write-Host "   📁 Security Tools:     $RepoRoot" -ForegroundColor $WHITE
 Write-Host "   🎯 Target Directory:   $TargetDir" -ForegroundColor $WHITE
-Write-Host "   🔍 Scan Type:          $ScanType" -ForegroundColor $WHITE
+Write-Host "   � Scan Directory:     $ScanDir" -ForegroundColor $WHITE
+Write-Host "   �🔍 Scan Type:          $ScanType" -ForegroundColor $WHITE
+Write-Host "   🆔 Scan ID:            $ScanId" -ForegroundColor $WHITE
 Write-Host "   ⏰ Started:            $(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')" -ForegroundColor $WHITE
 Write-Host "   📝 Log File:           $LogFile" -ForegroundColor $WHITE
 if ($Parallel) {
@@ -429,12 +450,12 @@ try {
     Write-Log "Error analyzing directory: $_" "ERROR"
 }
 
-# Calculate total scans based on scan type
+# Calculate total scans based on scan type (8 Security Layers)
 switch ($ScanType) {
-    "quick" { $script:TotalScans = 4 }
-    "images" { $script:TotalScans = 6 }
-    "analysis" { $script:TotalScans = 1 }
-    "full" { $script:TotalScans = 15 }
+    "quick" { $script:TotalScans = 4 }  # Core tools: TruffleHog, ClamAV, Grype, Trivy
+    "images" { $script:TotalScans = 6 }  # Container-focused
+    "analysis" { $script:TotalScans = 1 }  # Report analysis only
+    "full" { $script:TotalScans = 8 }  # All 8 security layers
 }
 
 Write-Host ""
@@ -485,34 +506,29 @@ switch ($ScanType) {
         Write-Section "🏗️  Complete Eight-Layer Security Architecture Scan"
         Write-Log "Starting full scan"
         
-        Write-Host "   🔷 Layer 1: Code Quality & Test Coverage" -ForegroundColor $PURPLE
-        Invoke-SecurityTool "SonarQube Analysis" "$ScriptDir\run-sonar-analysis.ps1" -RequiresDocker
+        Write-Host "   🔷 Layer 1: Secret Detection" -ForegroundColor $PURPLE
+        Invoke-SecurityTool "TruffleHog Secret Detection" "$ScriptDir\run-trufflehog-scan.ps1" -RequiresDocker
         
-        Write-Host "`n   🔷 Layer 2: Secret Detection (Multi-Target)" -ForegroundColor $PURPLE
-        Invoke-SecurityTool "TruffleHog Filesystem" "$ScriptDir\run-trufflehog-scan.ps1" -RequiresDocker
-        
-        Write-Host "`n   🔷 Layer 3: Malware Detection" -ForegroundColor $PURPLE
+        Write-Host "`n   🔷 Layer 2: Malware Detection" -ForegroundColor $PURPLE
         Invoke-SecurityTool "ClamAV Antivirus Scan" "$ScriptDir\run-clamav-scan.ps1" -RequiresDocker
         
-        Write-Host "`n   🔷 Layer 4: Helm Chart Building" -ForegroundColor $PURPLE
-        Invoke-SecurityTool "Helm Chart Build" "$ScriptDir\run-helm-build.ps1" -RequiresDocker
-        
-        Write-Host "`n   🔷 Layer 5: Infrastructure Security" -ForegroundColor $PURPLE
+        Write-Host "`n   🔷 Layer 3: Infrastructure Security" -ForegroundColor $PURPLE
         Invoke-SecurityTool "Checkov IaC Security" "$ScriptDir\run-checkov-scan.ps1" -RequiresDocker
         
-        Write-Host "`n   🔷 Layer 6: Vulnerability Detection (Multi-Target)" -ForegroundColor $PURPLE
-        Invoke-SecurityTool "Grype Filesystem" "$ScriptDir\run-grype-scan.ps1" "filesystem" -RequiresDocker
-        Invoke-SecurityTool "Grype Container Images" "$ScriptDir\run-grype-scan.ps1" "images" -RequiresDocker
-        Invoke-SecurityTool "Grype Base Images" "$ScriptDir\run-grype-scan.ps1" "base" -RequiresDocker
+        Write-Host "`n   🔷 Layer 4: Vulnerability Detection" -ForegroundColor $PURPLE
+        Invoke-SecurityTool "Grype Vulnerability Scanning" "$ScriptDir\run-grype-scan.ps1" "filesystem" -RequiresDocker
         
-        Write-Host "`n   🔷 Layer 7: Container Security (Multi-Target)" -ForegroundColor $PURPLE
-        Invoke-SecurityTool "Trivy Filesystem" "$ScriptDir\run-trivy-scan.ps1" "filesystem" -RequiresDocker
-        Invoke-SecurityTool "Trivy Container Images" "$ScriptDir\run-trivy-scan.ps1" "images" -RequiresDocker
-        Invoke-SecurityTool "Trivy Base Images" "$ScriptDir\run-trivy-scan.ps1" "base" -RequiresDocker
-        Invoke-SecurityTool "Trivy Kubernetes" "$ScriptDir\run-trivy-scan.ps1" "kubernetes" -RequiresDocker
+        Write-Host "`n   🔷 Layer 5: Container Security" -ForegroundColor $PURPLE
+        Invoke-SecurityTool "Trivy Security Analysis" "$ScriptDir\run-trivy-scan.ps1" "filesystem" -RequiresDocker
         
-        Write-Host "`n   🔷 Layer 8: End-of-Life Detection" -ForegroundColor $PURPLE
+        Write-Host "`n   🔷 Layer 6: End-of-Life Detection" -ForegroundColor $PURPLE
         Invoke-SecurityTool "Xeol EOL Detection" "$ScriptDir\run-xeol-scan.ps1" -RequiresDocker
+        
+        Write-Host "`n   🔷 Layer 7: Code Quality & Analysis" -ForegroundColor $PURPLE
+        Invoke-SecurityTool "SonarQube Analysis" "$ScriptDir\run-sonar-analysis.ps1" -RequiresDocker
+        
+        Write-Host "`n   🔷 Layer 8: Helm Chart Building" -ForegroundColor $PURPLE
+        Invoke-SecurityTool "Helm Chart Build" "$ScriptDir\run-helm-build.ps1" -RequiresDocker
     }
 }
 

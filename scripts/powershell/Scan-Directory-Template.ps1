@@ -160,12 +160,12 @@ function New-CurrentLinks {
         $resultsFile = "${script:SCAN_ID}_${ToolName}-results.json"
         $logFile = "${script:SCAN_ID}_${ToolName}-scan.log"
         
-        if (Test-Path $resultsFile) {
+        if ($resultsFile -and (Test-Path $resultsFile)) {
             if (Test-Path "$ToolName-results.json") { Remove-Item "$ToolName-results.json" -Force }
             New-Item -ItemType SymbolicLink -Path "$ToolName-results.json" -Target $resultsFile -ErrorAction SilentlyContinue | Out-Null
         }
         
-        if (Test-Path $logFile) {
+        if ($logFile -and (Test-Path $logFile)) {
             if (Test-Path "$ToolName-scan.log") { Remove-Item "$ToolName-scan.log" -Force }
             New-Item -ItemType SymbolicLink -Path "$ToolName-scan.log" -Target $logFile -ErrorAction SilentlyContinue | Out-Null
         }
