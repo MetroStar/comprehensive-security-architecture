@@ -12,6 +12,7 @@ trufflehog-reports/
 xeol-reports/
 clamav-reports/
 checkov-reports/
+scans/
 
 # Temporary files
 *.tmp

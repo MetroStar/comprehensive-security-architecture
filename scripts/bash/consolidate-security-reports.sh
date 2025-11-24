@@ -416,13 +416,57 @@ else
 fi
 
 # Generate comprehensive security dashboard
-echo -e "${PURPLE}📈 Generating dynamic security dashboard...${NC}"
+echo -e "${PURPLE}📈 Generating security dashboard from findings summary...${NC}"
 
-# Use Python script to generate dashboard with real data
-if command -v python3 &> /dev/null; then
-    python3 "$(dirname "$SCRIPT_DIR")/generate-dynamic-dashboard.py" "$REPO_ROOT/reports" "$UNIFIED_DIR/dashboards/security-dashboard.html"
+# Use bash script to generate dashboard from security-findings-summary.json
+DASHBOARD_GENERATOR="$SCRIPT_DIR/generate-security-dashboard.sh"
+FINDINGS_FILE="$SCAN_DIR/security-findings-summary.json"
+
+if [ -f "$DASHBOARD_GENERATOR" ] && [ -f "$FINDINGS_FILE" ]; then
+    echo -e "${GREEN}✓ Generating comprehensive dashboard with real data${NC}"
+    if "$DASHBOARD_GENERATOR" "$FINDINGS_FILE" "$UNIFIED_DIR/dashboards/security-dashboard.html"; then
+        echo -e "${GREEN}✓ Dashboard generated successfully${NC}"
+    else
+        echo -e "${YELLOW}⚠️  Dashboard generation failed, creating basic fallback${NC}"
+        # Fallback to basic dashboard if generation fails
+        cat > "$UNIFIED_DIR/dashboards/security-dashboard.html" << EOF
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Dashboard</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; background-color: #f5f5f5; }
+        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .message { background: white; padding: 30px; border-radius: 12px; text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🛡️ Security Dashboard</h1>
+        <p>Generated: $REPORT_DATE</p>
+    </div>
+    <div class="container">
+        <div class="message">
+            <h2>Security Scan Complete</h2>
+            <p>Check individual tool reports in the HTML reports directory.</p>
+            <p><a href="../html-reports/">Browse HTML Reports</a></p>
+        </div>
+    </div>
+</body>
+</html>
+EOF
+    fi
 else
-    echo -e "${YELLOW}⚠️  Python3 not found. Generating basic dashboard...${NC}"
+    if [ ! -f "$FINDINGS_FILE" ]; then
+        echo -e "${YELLOW}⚠️  Findings summary not found: $FINDINGS_FILE${NC}"
+    fi
+    if [ ! -f "$DASHBOARD_GENERATOR" ]; then
+        echo -e "${YELLOW}⚠️  Dashboard generator not found: $DASHBOARD_GENERATOR${NC}"
+    fi
+    echo -e "${YELLOW}⚠️  Generating basic dashboard...${NC}"
     
     # Fallback to basic static dashboard
     cat > "$UNIFIED_DIR/dashboards/security-dashboard.html" << EOF
