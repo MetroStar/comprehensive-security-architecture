@@ -5,20 +5,16 @@
 
 # Support target directory scanning - priority: command line arg, TARGET_DIR env var, current directory
 REPO_PATH="${1:-${TARGET_DIR:-$(pwd)}}"
+# Resolve to absolute path
+REPO_PATH=$(cd "$REPO_PATH" && pwd)
+
 # Set REPO_ROOT for report generation
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
-# Initialize scan environment using scan directory approach
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-# Source the scan directory template
-source "$SCRIPT_DIR/scan-directory-template.sh"
-
-# Initialize scan environment for SonarQube
-init_scan_environment "sonar"
 
 # Set TARGET_DIR and extract scan information
-TARGET_DIR="${TARGET_DIR:-$(pwd)}"
+TARGET_DIR="${REPO_PATH}"
+export TARGET_DIR
 if [[ -n "$SCAN_ID" ]]; then
     TARGET_NAME=$(echo "$SCAN_ID" | cut -d'_' -f1)
     USERNAME=$(echo "$SCAN_ID" | cut -d'_' -f2)
@@ -47,6 +43,7 @@ for env_file in "${SONAR_ENV_FILES[@]}"; do
     echo "Loading environment variables from $env_file..."
     source "$env_file"
     SONAR_CONFIG_FOUND=true
+    SONAR_CONFIG_SOURCE="$env_file"
     break
   fi
 done
@@ -56,6 +53,7 @@ if [ "$SONAR_CONFIG_FOUND" = false ]; then
   for env_file in "${SONAR_ENV_FILES[@]}"; do
     echo "   - $env_file"
   done
+  SONAR_CONFIG_SOURCE="none"
 fi
 
 # Default values (can be overridden by environment variables or sonar-project.properties)
@@ -64,18 +62,36 @@ SONAR_HOST_URL="${SONAR_HOST_URL:-https://sonarqube.cdao.us}"
 # Look for sonar-project.properties file in the target directory
 SONAR_PROPERTIES_FILES=(
   "$REPO_PATH/sonar-project.properties"
+  "$REPO_PATH/$(basename "$REPO_PATH")/sonar-project.properties"
   "$REPO_PATH/frontend/sonar-project.properties"
   "$REPO_PATH/sonar.properties"
 )
 
 PROJECT_KEY=""
+PROPS_HOST_URL=""
+PROPS_TOKEN=""
 for props_file in "${SONAR_PROPERTIES_FILES[@]}"; do
   if [ -f "$props_file" ]; then
-    echo "[OK] Found SonarQube properties: $(basename "$props_file")"
+    echo "[OK] Found SonarQube properties: $props_file"
     # Extract project key from properties file
     PROJECT_KEY=$(grep -E "^sonar\.projectKey\s*=" "$props_file" | cut -d'=' -f2 | tr -d ' ' | tr -d '\n' 2>/dev/null)
+    # Extract host URL from properties file
+    PROPS_HOST_URL=$(grep -E "^sonar\.host\.url\s*=" "$props_file" | cut -d'=' -f2 | tr -d ' ' | tr -d '\n' 2>/dev/null)
+    # Extract token from properties file
+    PROPS_TOKEN=$(grep -E "^sonar\.token\s*=" "$props_file" | grep -v '^#' | cut -d'=' -f2 | tr -d ' ' | tr -d '\n' 2>/dev/null)
     if [ -n "$PROJECT_KEY" ]; then
       echo "[INFO] Using project key from properties: $PROJECT_KEY"
+      if [ -n "$PROPS_HOST_URL" ]; then
+        echo "[INFO] Using host URL from properties: $PROPS_HOST_URL"
+        SONAR_HOST_URL="$PROPS_HOST_URL"
+        SONAR_CONFIG_SOURCE="${SONAR_CONFIG_SOURCE} + properties file"
+      fi
+      if [ -n "$PROPS_TOKEN" ]; then
+        TOKEN_PREFIX="${PROPS_TOKEN:0:8}"
+        TOKEN_LENGTH=${#PROPS_TOKEN}
+        echo "[INFO] Using token from properties: ${TOKEN_PREFIX}...(${TOKEN_LENGTH} chars)"
+        SONAR_TOKEN="$PROPS_TOKEN"
+      fi
       break
     fi
   fi
@@ -86,6 +102,39 @@ if [ -z "$PROJECT_KEY" ]; then
   PROJECT_KEY="${SONAR_PROJECT_KEY:-tenant-metrostar-advana-marketplace}"
   echo "[INFO] Using project key from environment/default: $PROJECT_KEY"
 fi
+
+# Save REPO_PATH before init_scan_environment potentially overwrites it
+SAVED_REPO_PATH="$REPO_PATH"
+
+# Now initialize scan environment after REPO_PATH is properly set
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Source the scan directory template
+source "$SCRIPT_DIR/scan-directory-template.sh"
+
+# Initialize scan environment for SonarQube
+init_scan_environment "sonar"
+
+# Restore REPO_PATH after init_scan_environment
+REPO_PATH="$SAVED_REPO_PATH"
+
+# Display configuration summary
+echo ""
+echo "============================================"
+echo "🔍 SonarQube Configuration Summary"
+echo "============================================"
+echo "Config Source: ${SONAR_CONFIG_SOURCE:-environment}"
+echo "Host URL: $SONAR_HOST_URL"
+echo "Project Key: $PROJECT_KEY"
+if [ -n "$SONAR_TOKEN" ]; then
+  TOKEN_PREFIX="${SONAR_TOKEN:0:8}"
+  TOKEN_LENGTH=${#SONAR_TOKEN}
+  echo "Token: ${TOKEN_PREFIX}...(${TOKEN_LENGTH} chars total)"
+else
+  echo "Token: [NOT SET - will prompt]"
+fi
+echo "============================================"
+echo ""
 
 # Check if token is set and provide graceful handling
 if [ -z "$SONAR_TOKEN" ]; then
@@ -134,8 +183,12 @@ if [ -z "$SONAR_TOKEN" ]; then
         exit 0
       fi
       
-      echo ""
+      # Show token verification (masked)
+      TOKEN_PREFIX="${SONAR_TOKEN:0:8}"
+      TOKEN_LENGTH=${#SONAR_TOKEN}
+      echo "[OK] Token received: ${TOKEN_PREFIX}...(${TOKEN_LENGTH} chars)"
       echo "[OK] Credentials provided - proceeding with SonarQube analysis"
+      SONAR_CONFIG_SOURCE="manual entry"
       
     elif [ "$AUTH_CHOICE" = "2" ]; then
       echo ""
@@ -249,15 +302,45 @@ echo "============================================"
 echo "Project: $PROJECT_KEY"
 echo "Host: $SONAR_HOST_URL"
 echo "Sources: $SOURCES_PATH"
-echo "Working from: $(pwd)"
+echo "Working from: $REPO_PATH"
 
-# Run SonarQube scanner with target directory support
-npx sonarqube-scanner \
-  -Dsonar.projectKey=$PROJECT_KEY \
-  -Dsonar.sources="$SOURCES_PATH" \
-  -Dsonar.host.url=$SONAR_HOST_URL \
-  -Dsonar.token=$SONAR_TOKEN \
-  -Dsonar.projectBaseDir="$REPO_PATH"
+# Display token for verification (masked)
+if [ -n "$SONAR_TOKEN" ]; then
+  TOKEN_PREFIX="${SONAR_TOKEN:0:8}"
+  TOKEN_LENGTH=${#SONAR_TOKEN}
+  echo "Token: ${TOKEN_PREFIX}...(${TOKEN_LENGTH} chars)"
+else
+  echo "Token: [NOT SET]"
+fi
+
+# Verify which scanner will be used
+SCANNER_PATH=$(command -v sonarqube-scanner 2>/dev/null || echo "npx will download")
+echo "Scanner: $SCANNER_PATH"
+echo ""
+
+# Change to the target directory to run the scanner
+cd "$REPO_PATH"
+
+# If properties file exists with sonar.sources defined, use the properties file as-is
+# Otherwise, pass sources explicitly
+if [ -n "$PROPS_HOST_URL" ] && [ -f "$REPO_PATH/$(basename "$REPO_PATH")/sonar-project.properties" ]; then
+  echo "[INFO] Using sonar-project.properties from subdirectory"
+  # Change to subdirectory where properties file is located
+  cd "$REPO_PATH/$(basename "$REPO_PATH")"
+  # Run scanner without overriding sources (properties file defines them)
+  npx sonarqube-scanner \
+    -Dsonar.projectKey=$PROJECT_KEY \
+    -Dsonar.host.url=$SONAR_HOST_URL \
+    -Dsonar.token=$SONAR_TOKEN
+else
+  # Run SonarQube scanner with explicit paths
+  npx sonarqube-scanner \
+    -Dsonar.projectKey=$PROJECT_KEY \
+    -Dsonar.sources="$SOURCES_PATH" \
+    -Dsonar.host.url=$SONAR_HOST_URL \
+    -Dsonar.token=$SONAR_TOKEN \
+    -Dsonar.projectBaseDir="$REPO_PATH"
+fi
 
 # Save local copy of test results for dashboard
 echo ""
