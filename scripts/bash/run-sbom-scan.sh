@@ -194,11 +194,11 @@ generate_sbom() {
     echo "Project: ${project_name} (${project_version})" >> "$SCAN_LOG"
     
     if command -v syft >/dev/null 2>&1; then
-        # Use local Syft installation with project metadata
+        # Use local Syft installation
         echo -e "${GREEN}✅ Using local Syft installation${NC}"
         syft version >> "$SCAN_LOG" 2>&1
         
-        if syft "$target" -o json --name "$project_name" --version "$project_version" > "$output_file" 2>>"$SCAN_LOG"; then
+        if syft scan "$target" -o syft-json > "$output_file" 2>>"$SCAN_LOG"; then
             echo -e "${GREEN}✅ SBOM generated successfully: $(basename "$output_file")${NC}"
             echo "SBOM generated successfully: $output_file" >> "$SCAN_LOG"
         else
@@ -207,13 +207,13 @@ generate_sbom() {
             echo '{"artifacts": [], "artifactRelationships": [], "source": {"type": "directory", "target": "'$target'"}, "distro": {}, "descriptor": {"name": "syft", "version": "error"}}' > "$output_file"
         fi
     elif command -v docker >/dev/null 2>&1; then
-        # Use Docker version of Syft with project metadata
+        # Use Docker version of Syft
         echo -e "${YELLOW}⚠️  Local Syft not found, using Docker version${NC}"
         echo "Using Docker version of Syft" >> "$SCAN_LOG"
         
-        if docker run --rm -v "$REPO_PATH":/workspace \
+        if docker run --rm -v "$target":/workspace:ro \
             anchore/syft:latest \
-            /workspace -o json --name "$project_name" --version "$project_version" > "$output_file" 2>>"$SCAN_LOG"; then
+            scan dir:/workspace -o syft-json > "$output_file" 2>>"$SCAN_LOG"; then
             echo -e "${GREEN}✅ SBOM generated successfully: $(basename "$output_file")${NC}"
             echo "SBOM generated successfully: $output_file" >> "$SCAN_LOG"
         else

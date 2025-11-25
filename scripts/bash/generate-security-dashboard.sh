@@ -3,7 +3,8 @@
 # Generate Interactive Security Dashboard
 # Creates an interactive HTML dashboard with expandable tool sections showing detailed vulnerabilities
 
-set -euo pipefail
+# Use less strict mode for robustness with jq parsing
+set -u
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -177,9 +178,12 @@ if [ -d "$TRIVY_DIR" ]; then
     
     # Parse vulnerabilities from all Trivy JSON files
     for trivy_file in "$TRIVY_DIR"/*.json; do
-        if [ -f "$trivy_file" ] && grep -q '"SchemaVersion"' "$trivy_file"; then
+        if [ -f "$trivy_file" ] && grep -q '"SchemaVersion"' "$trivy_file" 2>/dev/null; then
             # Extract JSON portion (skip any log lines at the beginning)
-            json_content=$(grep -A9999 '^\s*{' "$trivy_file" 2>/dev/null || cat "$trivy_file")
+            set +o pipefail
+            json_content=$(sed -n '/^{/,$p' "$trivy_file" 2>/dev/null || cat "$trivy_file")
+            set -o pipefail
+            
             crit_count=$(echo "$json_content" | jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="CRITICAL")] | length' 2>/dev/null || echo "0")
             high_count=$(echo "$json_content" | jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="HIGH")] | length' 2>/dev/null || echo "0")
             med_count=$(echo "$json_content" | jq '[.Results[]?.Vulnerabilities[]? | select(.Severity=="MEDIUM")] | length' 2>/dev/null || echo "0")
@@ -199,30 +203,79 @@ if [ -d "$TRIVY_DIR" ]; then
             # Extract individual vulnerability details for ALL severity levels (limit to top 50 per file)
             set +e
             vuln_details=$(echo "$json_content" | jq -r '
+                def html_escape: gsub("<"; "&lt;") | gsub(">"; "&gt;") | gsub("\""; "&quot;") | gsub("\n"; " ");
+                def status_badge_color: if . == "fixed" then "#c6f6d5;color:#2f855a" elif . == "affected" then "#fed7d7;color:#c53030" else "#feebc8;color:#c05621" end;
+                def status_text_color: if . == "fixed" then "#2f855a" elif . == "affected" then "#c53030" else "#c05621" end;
+                def fixed_color: if . == "No fix available" then "color:#c53030;" else "color:#2f855a;" end;
+                def format_date: if . == "Unknown" then "Unknown" else (. | split("T")[0]) end;
+                def cwes_display: if . == "" then "Not specified" else . end;
                 [.Results[]? | select(.Vulnerabilities != null) | 
                  .Target as $target |
+                 .Type as $pkg_type |
                  .Vulnerabilities[]? | 
-                 {target: $target, id: .VulnerabilityID, pkg: .PkgName, severity: .Severity, 
-                  installed: .InstalledVersion, fixed: (.FixedVersion // "Not fixed"), 
-                  title: .Title, desc: (.Description // "No description available")}
+                 {target: $target, 
+                  pkg_type: $pkg_type,
+                  id: .VulnerabilityID, 
+                  pkg: .PkgName, 
+                  severity: .Severity, 
+                  severity_lc: (.Severity | ascii_downcase),
+                  installed: .InstalledVersion, 
+                  fixed: (.FixedVersion // "No fix available"),
+                  status: (.Status // "unknown"),
+                  status_uc: ((.Status // "unknown") | ascii_upcase),
+                  status_badge: ((.Status // "unknown") | status_badge_color),
+                  status_color: ((.Status // "unknown") | status_text_color),
+                  fixed_style: ((.FixedVersion // "No fix available") | fixed_color),
+                  title: ((.Title // .VulnerabilityID) | html_escape | .[0:80]), 
+                  desc: ((.Description // "No description available") | html_escape),
+                  desc_short: ((.Description // "No description available") | html_escape | .[0:120]),
+                  primary_url: (.PrimaryURL // ""),
+                  published: ((.PublishedDate // "Unknown") | format_date),
+                  modified: ((.LastModifiedDate // "Unknown") | format_date),
+                  cwes: (((.CweIDs // []) | join(", ")) | cwes_display),
+                  refs: ((.References // []) | .[0:3] | join(" ")),
+                  data_source: (.DataSource.Name // "Unknown"),
+                  purl: ((.PkgIdentifier.PURL // "") | html_escape)}
                 ] | sort_by(.severity | if . == "CRITICAL" then 0 elif . == "HIGH" then 1 elif . == "MEDIUM" then 2 else 3 end) | .[0:50] | .[] |
-                "<div class=\"finding-item severity-\(.severity | ascii_downcase)\" onclick=\"toggleFindingDetails(this)\">
-                    <div class=\"finding-header\">
-                        <span class=\"badge badge-tool\">Trivy</span>
-                        <span class=\"badge badge-\(.severity | ascii_downcase)\">\(.severity)</span>
-                        <span class=\"badge\" style=\"background:#e2e8f0;color:#4a5568;\">\(.id)</span>
-                    </div>
-                    <div class=\"finding-title\">\(.pkg) - \(.title // .id)</div>
-                    <div class=\"finding-desc\">\(.desc | .[0:200])...</div>
-                    <div class=\"finding-details\" style=\"display:none;\">
-                        <div><strong>CVE ID:</strong> <code>\(.id)</code></div>
-                        <div><strong>Target:</strong> <code>\(.target)</code></div>
-                        <div><strong>Package:</strong> <code>\(.pkg)</code></div>
-                        <div><strong>Installed Version:</strong> <code>\(.installed)</code></div>
-                        <div><strong>Fixed Version:</strong> <code>\(.fixed)</code></div>
-                        <div><strong>Full Description:</strong> \(.desc)</div>
-                    </div>
-                </div>"
+                "<div class=\"finding-item severity-" + .severity_lc + "\" data-pkg=\"" + .pkg + "\" data-status=\"" + .status + "\" data-cve=\"" + .id + "\" onclick=\"toggleFindingDetails(this)\">
+<div class=\"finding-header\">
+<span class=\"badge badge-tool\">Trivy</span>
+<span class=\"badge badge-" + .severity_lc + "\">" + .severity + "</span>
+<span class=\"badge\" style=\"background:#e2e8f0;color:#4a5568;\">" + .id + "</span>
+<span class=\"badge\" style=\"background:" + .status_badge + ";\">" + .status_uc + "</span>
+</div>
+<div class=\"finding-title\">" + .pkg + "@" + .installed + " - " + .title + "</div>
+<div class=\"finding-desc\">" + .desc_short + "...</div>
+<div class=\"finding-details\" style=\"display:none;\">
+<div class=\"detail-section\"><h5>Vulnerability Info</h5>
+<div><strong>CVE ID:</strong> <code>" + .id + "</code> <a href=\"" + .primary_url + "\" target=\"_blank\" style=\"color:#667eea;\">View Details</a></div>
+<div><strong>CWE IDs:</strong> <code>" + .cwes + "</code></div>
+<div><strong>Data Source:</strong> " + .data_source + "</div>
+<div><strong>Published:</strong> " + .published + "</div>
+<div><strong>Last Modified:</strong> " + .modified + "</div>
+</div>
+<div class=\"detail-section\"><h5>Package Info</h5>
+<div><strong>Package:</strong> <code>" + .pkg + "</code></div>
+<div><strong>Type:</strong> <code>" + .pkg_type + "</code></div>
+<div><strong>Installed:</strong> <code>" + .installed + "</code></div>
+<div><strong>Fixed Version:</strong> <code style=\"" + .fixed_style + "\">" + .fixed + "</code></div>
+<div><strong>Status:</strong> <span style=\"font-weight:600;color:" + .status_color + ";\">" + .status_uc + "</span></div>
+<div><strong>PURL:</strong> <code style=\"font-size:0.8em;word-break:break-all;\">" + .purl + "</code></div>
+</div>
+<div class=\"detail-section\"><h5>False Positive Assessment</h5>
+<div class=\"fp-checklist\">
+<label><input type=\"checkbox\" class=\"fp-check\"> Package not used in production</label>
+<label><input type=\"checkbox\" class=\"fp-check\"> Vulnerable code path not reachable</label>
+<label><input type=\"checkbox\" class=\"fp-check\"> Compensating controls in place</label>
+<label><input type=\"checkbox\" class=\"fp-check\"> Risk accepted per security policy</label>
+</div>
+<div style=\"margin-top:10px;\"><strong>Target:</strong> <code>" + .target + "</code></div>
+</div>
+<div class=\"detail-section\"><h5>Description</h5>
+<div style=\"background:#f7fafc;padding:12px;border-radius:6px;font-size:0.9em;line-height:1.6;\">" + .desc + "</div>
+</div>
+</div>
+</div>"
             ' 2>/dev/null)
             set -e
             
@@ -240,7 +293,23 @@ if [ -d "$TRIVY_DIR" ]; then
             <span class=\"badge badge-medium\">$TRIVY_MEDIUM Medium</span>
             <span class=\"badge badge-low\">$TRIVY_LOW Low</span>
         </div>
-        <p style=\"color:#718096;margin-bottom:15px;font-size:0.9em;\">👆 Click on any finding below to expand details (showing up to 50 per image)</p>
+        <div class=\"trivy-controls\" style=\"margin-bottom:20px;\">
+            <div style=\"display:flex;gap:10px;flex-wrap:wrap;align-items:center;\">
+                <span style=\"font-weight:600;color:#4a5568;\">Filter by Status:</span>
+                <button class=\"filter-chip filter-chip-all active\" onclick=\"filterTrivyByStatus('all')\">All</button>
+                <button class=\"filter-chip\" style=\"background:#c6f6d5;color:#2f855a;\" onclick=\"filterTrivyByStatus('fixed')\">🔧 Has Fix</button>
+                <button class=\"filter-chip\" style=\"background:#fed7d7;color:#c53030;\" onclick=\"filterTrivyByStatus('affected')\">⚠️ No Fix</button>
+            </div>
+            <div style=\"margin-top:10px;\">
+                <input type=\"text\" id=\"trivy-search\" placeholder=\"🔍 Search by CVE, package name, or description...\" 
+                    onkeyup=\"filterTrivyBySearch(this.value)\" 
+                    style=\"width:100%;padding:10px 15px;border:2px solid #e2e8f0;border-radius:8px;font-size:0.95em;\">
+            </div>
+        </div>
+        <p style=\"color:#718096;margin-bottom:15px;font-size:0.9em;\">
+            💡 <strong>Tip:</strong> Click any finding to expand details. Use the checkboxes to track false positive assessments. 
+            Green \"FIXED\" status means a patched version is available.
+        </p>
         ${TRIVY_DETAILS}"
     else
         TRIVY_FINDINGS="<p class=\"no-findings\">✅ No vulnerabilities detected in container images</p>"
@@ -336,17 +405,98 @@ fi
 SBOM_DIR="${LATEST_SCAN}/sbom"
 SBOM_PACKAGES=0
 SBOM_FILES_GENERATED=0
+SBOM_PACKAGE_TYPES=""
+SBOM_FINDINGS=""
 if [ -d "$SBOM_DIR" ]; then
     SBOM_FILES_GENERATED=$(find "$SBOM_DIR" -name "*.json" -type f 2>/dev/null | wc -l | tr -d ' \n' || echo "0")
     [[ "$SBOM_FILES_GENERATED" =~ ^[0-9]+$ ]] || SBOM_FILES_GENERATED=0
     
+    # Collect all packages from SBOM files
+    SBOM_ALL_PACKAGES=""
     for sbom_file in "$SBOM_DIR"/*.json; do
         if [ -f "$sbom_file" ]; then
             pkg_count=$(jq '.artifacts | length' "$sbom_file" 2>/dev/null || echo "0")
             [[ "$pkg_count" =~ ^[0-9]+$ ]] || pkg_count=0
             SBOM_PACKAGES=$((SBOM_PACKAGES + pkg_count))
+            
+            # Get package types summary
+            if [ "$pkg_count" -gt 0 ]; then
+                SBOM_PACKAGE_TYPES=$(jq -r '.artifacts[].type' "$sbom_file" 2>/dev/null | sort | uniq -c | sort -rn | head -10)
+            fi
         fi
     done
+    
+    # Generate SBOM findings HTML with package details
+    if [ "$SBOM_PACKAGES" -gt 0 ]; then
+        # Find the main SBOM file with packages
+        for sbom_file in "$SBOM_DIR"/*.json; do
+            if [ -f "$sbom_file" ]; then
+                pkg_count=$(jq '.artifacts | length' "$sbom_file" 2>/dev/null || echo "0")
+                if [ "$pkg_count" -gt 0 ]; then
+                    # Generate package type breakdown with clickable filter chips
+                    SBOM_TYPE_BREAKDOWN=$(jq -r '[.artifacts[].type] | group_by(.) | map({type: .[0], count: length}) | sort_by(-.count) | .[:15] | map("<button class=\"sbom-filter-chip\" data-type=\"\(.type)\" onclick=\"filterSBOMByType(this, '"'"'\(.type)'"'"')\"><span class=\"type-name\">\(.type)</span><span class=\"type-count\">\(.count)</span></button>") | join("")' "$sbom_file" 2>/dev/null)
+                    
+                    # Generate package list (first 100 packages) with data attributes for filtering/sorting
+                    SBOM_PACKAGE_LIST=$(jq -r '.artifacts[:100] | map("<div class=\"sbom-package-item\" data-name=\"\(.name | ascii_downcase)\" data-type=\"\(.type // "unknown")\" data-version=\"\(.version // "0.0.0")\" data-language=\"\(.language // "unknown")\" onclick=\"toggleFindingDetails(this)\">
+                        <div class=\"finding-header\">
+                            <span class=\"badge badge-tool\">\(.type // "unknown")</span>
+                            <span class=\"badge sbom-version-badge\">\(.version // "N/A")</span>
+                            <span class=\"badge sbom-lang-badge\">\(.language // "")</span>
+                        </div>
+                        <div class=\"finding-title\">\(.name)</div>
+                        <div class=\"finding-details\" style=\"display: none;\">
+                            <div><strong>Name:</strong> <code>\(.name)</code></div>
+                            <div><strong>Version:</strong> <code>\(.version // "N/A")</code></div>
+                            <div><strong>Type:</strong> <code>\(.type // "unknown")</code></div>
+                            <div><strong>Language:</strong> <code>\(.language // "N/A")</code></div>
+                            <div><strong>Licenses:</strong> <code>\(((.licenses // []) | map(.value // .spdxExpression // "Unknown") | join(", ")) // "Not specified")</code></div>
+                            <div><strong>PURL:</strong> <code>\(.purl // "N/A")</code></div>
+                            <div><strong>CPEs:</strong> <code>\(((.cpes // []) | map(.cpe // .) | .[0:3] | join(", ")) // "N/A")</code></div>
+                        </div>
+                    </div>") | join("\n")' "$sbom_file" 2>/dev/null)
+                    
+                    SBOM_FINDINGS="<div class=\"sbom-controls\">
+                        <div class=\"sbom-filter-section\">
+                            <span class=\"filter-label\">🔍 Filter by Type:</span>
+                            <div class=\"sbom-filter-chips\">
+                                <button class=\"sbom-filter-chip active\" data-type=\"all\" onclick=\"filterSBOMByType(this, 'all')\">
+                                    <span class=\"type-name\">All</span>
+                                    <span class=\"type-count\">${SBOM_PACKAGES}</span>
+                                </button>
+                                ${SBOM_TYPE_BREAKDOWN}
+                            </div>
+                        </div>
+                        <div class=\"sbom-sort-section\">
+                            <span class=\"filter-label\">⇅ Sort by:</span>
+                            <div class=\"sbom-sort-buttons\">
+                                <button class=\"sbom-sort-btn active\" onclick=\"sortSBOMPackages('name')\" id=\"sbom-sort-name\">📝 Name</button>
+                                <button class=\"sbom-sort-btn\" onclick=\"sortSBOMPackages('type')\" id=\"sbom-sort-type\">📦 Type</button>
+                                <button class=\"sbom-sort-btn\" onclick=\"sortSBOMPackages('version')\" id=\"sbom-sort-version\">🏷️ Version</button>
+                            </div>
+                        </div>
+                        <div class=\"sbom-search-box\">
+                            <input type=\"text\" id=\"sbom-search\" placeholder=\"🔍 Search packages by name, type, or version...\" onkeyup=\"filterSBOMPackages(this.value)\">
+                        </div>
+                    </div>
+                    <div class=\"sbom-results-bar\" id=\"sbom-results-bar\">
+                        <span id=\"sbom-results-count\">Showing ${SBOM_PACKAGES} packages</span>
+                        <a class=\"clear-filter\" onclick=\"resetSBOMFilters()\" style=\"display: none;\" id=\"sbom-clear-filter\">Clear Filters ✕</a>
+                    </div>
+                    <div class=\"sbom-package-list\" id=\"sbom-package-list\">
+                        ${SBOM_PACKAGE_LIST}
+                    </div>
+                    <p style=\"text-align: center; color: #718096; margin-top: 15px;\">Showing first 100 of ${SBOM_PACKAGES} total packages</p>"
+                    break
+                fi
+            fi
+        done
+    fi
+    
+    if [ -z "$SBOM_FINDINGS" ]; then
+        SBOM_FINDINGS="<p class=\"no-findings\">✅ No packages cataloged in SBOM</p>"
+    fi
+else
+    SBOM_FINDINGS="<p class=\"no-findings\">No SBOM data available</p>"
 fi
 
 # ---- Checkov Statistics ----
@@ -748,6 +898,80 @@ cat > "$OUTPUT_HTML" << 'EOF'
             word-break: break-all;
         }
         
+        /* Detail sections for expanded findings */
+        .detail-section {
+            background: #f7fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 12px;
+        }
+        
+        .detail-section h5 {
+            color: #4a5568;
+            margin: 0 0 12px 0;
+            font-size: 0.95em;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 8px;
+        }
+        
+        .detail-section div {
+            margin-bottom: 6px;
+        }
+        
+        /* False Positive Checklist */
+        .fp-checklist {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .fp-checklist label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 12px;
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.9em;
+        }
+        
+        .fp-checklist label:hover {
+            background: #edf2f7;
+            border-color: #cbd5e0;
+        }
+        
+        .fp-check {
+            width: 18px;
+            height: 18px;
+            accent-color: #38a169;
+        }
+        
+        .fp-checklist label:has(.fp-check:checked) {
+            background: #c6f6d5;
+            border-color: #9ae6b4;
+            color: #276749;
+        }
+        
+        /* Status badge colors */
+        .status-fixed {
+            background: #c6f6d5 !important;
+            color: #2f855a !important;
+        }
+        
+        .status-affected {
+            background: #fed7d7 !important;
+            color: #c53030 !important;
+        }
+        
+        .status-unknown {
+            background: #feebc8 !important;
+            color: #c05621 !important;
+        }
+        
         .stats-detail-box {
             background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
             border: 1px solid #7dd3fc;
@@ -794,6 +1018,233 @@ cat > "$OUTPUT_HTML" << 'EOF'
             font-size: 1.2em;
         }
         
+        /* SBOM Viewer Styles */
+        .sbom-controls {
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            border: 1px solid #7dd3fc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .sbom-filter-section {
+            margin-bottom: 15px;
+        }
+        
+        .sbom-filter-section .filter-label,
+        .sbom-sort-section .filter-label {
+            font-weight: 600;
+            color: #0369a1;
+            margin-right: 10px;
+            display: inline-block;
+            margin-bottom: 10px;
+        }
+        
+        .sbom-filter-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .sbom-filter-chip {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: white;
+            border: 2px solid #7dd3fc;
+            border-radius: 20px;
+            padding: 6px 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 0.9em;
+        }
+        
+        .sbom-filter-chip:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            background: #e0f2fe;
+        }
+        
+        .sbom-filter-chip.active {
+            background: linear-gradient(135deg, #0369a1 0%, #0284c7 100%);
+            border-color: #0369a1;
+            color: white;
+        }
+        
+        .sbom-filter-chip.active .type-name {
+            color: white;
+        }
+        
+        .sbom-filter-chip.active .type-count {
+            background: rgba(255,255,255,0.3);
+            color: white;
+        }
+        
+        .sbom-filter-chip .type-name {
+            font-weight: 600;
+            color: #0369a1;
+        }
+        
+        .sbom-filter-chip .type-count {
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        
+        .sbom-sort-section {
+            margin-bottom: 15px;
+        }
+        
+        .sbom-sort-buttons {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        .sbom-sort-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 2px solid #e2e8f0;
+            background: white;
+            color: #4a5568;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .sbom-sort-btn:hover {
+            background: #f7fafc;
+            border-color: #cbd5e0;
+        }
+        
+        .sbom-sort-btn.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .sbom-results-bar {
+            background: #f7fafc;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        #sbom-results-count {
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        .sbom-type-breakdown {
+            margin-bottom: 20px;
+        }
+        
+        .sbom-type-breakdown h4 {
+            color: #0369a1;
+            margin-bottom: 15px;
+        }
+        
+        .sbom-types-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .sbom-type-chip {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%);
+            border: 1px solid #7dd3fc;
+            border-radius: 20px;
+            padding: 8px 16px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .sbom-type-chip:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .sbom-type-chip .type-name {
+            font-weight: 600;
+            color: #0369a1;
+        }
+        
+        .sbom-type-chip .type-count {
+            background: white;
+            color: #0369a1;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.85em;
+            font-weight: 600;
+        }
+        
+        .sbom-version-badge {
+            background: #e0f2fe !important;
+            color: #0369a1 !important;
+        }
+        
+        .sbom-lang-badge {
+            background: #fef3c7 !important;
+            color: #92400e !important;
+        }
+        
+        .sbom-search-box {
+            margin-top: 15px;
+        }
+        
+        .sbom-search-box input {
+            width: 100%;
+            padding: 12px 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 1em;
+            transition: all 0.2s ease;
+        }
+        
+        .sbom-search-box input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+        }
+        
+        .sbom-package-list {
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        
+        .sbom-package-item {
+            background: #f7fafc;
+            border-radius: 8px;
+            padding: 15px 20px;
+            margin-bottom: 10px;
+            border-left: 4px solid #7dd3fc;
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+        
+        .sbom-package-item:hover {
+            transform: translateX(5px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .sbom-package-item.expanded {
+            background: #e0f2fe;
+            border-left-width: 6px;
+        }
+        
+        .sbom-package-item.filtered-out {
+            display: none;
+        }
+        
         .footer {
             background: white;
             border-radius: 12px;
@@ -821,6 +1272,185 @@ cat > "$OUTPUT_HTML" << 'EOF'
         .footer-link:hover {
             color: #764ba2;
             text-decoration: underline;
+        }
+        
+        /* Filter Controls */
+        .filter-bar {
+            background: white;
+            border-radius: 12px;
+            padding: 20px 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .filter-label {
+            font-weight: 600;
+            color: #4a5568;
+            margin-right: 10px;
+        }
+        
+        .filter-chips {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .filter-chip {
+            padding: 8px 16px;
+            border-radius: 25px;
+            border: 2px solid transparent;
+            font-weight: 600;
+            font-size: 0.9em;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .filter-chip:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        .filter-chip.active {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+        }
+        
+        .filter-chip-all {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+        .filter-chip-all.active {
+            background: #4a5568;
+            color: white;
+            border-color: #2d3748;
+        }
+        
+        .filter-chip-critical {
+            background: #fff5f5;
+            color: #e53e3e;
+            border-color: #feb2b2;
+        }
+        .filter-chip-critical.active {
+            background: #e53e3e;
+            color: white;
+            border-color: #c53030;
+        }
+        
+        .filter-chip-high {
+            background: #fffaf0;
+            color: #dd6b20;
+            border-color: #fbd38d;
+        }
+        .filter-chip-high.active {
+            background: #dd6b20;
+            color: white;
+            border-color: #c05621;
+        }
+        
+        .filter-chip-medium {
+            background: #fffff0;
+            color: #d69e2e;
+            border-color: #faf089;
+        }
+        .filter-chip-medium.active {
+            background: #d69e2e;
+            color: white;
+            border-color: #b7791f;
+        }
+        
+        .filter-chip-low {
+            background: #f0fff4;
+            color: #38a169;
+            border-color: #9ae6b4;
+        }
+        .filter-chip-low.active {
+            background: #38a169;
+            color: white;
+            border-color: #276749;
+        }
+        
+        .filter-chip .chip-count {
+            background: rgba(0,0,0,0.1);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.85em;
+        }
+        
+        .filter-chip.active .chip-count {
+            background: rgba(255,255,255,0.3);
+        }
+        
+        .sort-controls {
+            display: flex;
+            gap: 10px;
+            margin-left: auto;
+            align-items: center;
+        }
+        
+        .sort-btn {
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            background: white;
+            color: #4a5568;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .sort-btn:hover {
+            background: #f7fafc;
+            border-color: #cbd5e0;
+        }
+        
+        .sort-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        
+        .filter-results {
+            background: #f7fafc;
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .filter-results-count {
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        .clear-filter {
+            color: #667eea;
+            text-decoration: none;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        
+        .clear-filter:hover {
+            text-decoration: underline;
+        }
+        
+        .finding-item.filtered-out {
+            display: none !important;
+        }
+        
+        .tool-card.filtered-out {
+            opacity: 0.4;
         }
         
         @media (max-width: 768px) {
@@ -884,6 +1514,41 @@ cat >> "$OUTPUT_HTML" << EOF
                 <div class="stat-number">${TOTAL_LOW}</div>
                 <p>Low priority issues</p>
             </div>
+        </div>
+
+        <div class="filter-bar">
+            <span class="filter-label">🔍 Filter by Severity:</span>
+            <div class="filter-chips">
+                <button class="filter-chip filter-chip-all active" onclick="filterBySeverity('all')">
+                    All <span class="chip-count">${TOTAL_FINDINGS}</span>
+                </button>
+                <button class="filter-chip filter-chip-critical" onclick="filterBySeverity('critical')">
+                    ❗ Critical <span class="chip-count">${TOTAL_CRITICAL}</span>
+                </button>
+                <button class="filter-chip filter-chip-high" onclick="filterBySeverity('high')">
+                    ⚠️ High <span class="chip-count">${TOTAL_HIGH}</span>
+                </button>
+                <button class="filter-chip filter-chip-medium" onclick="filterBySeverity('medium')">
+                    ⚡ Medium <span class="chip-count">${TOTAL_MEDIUM}</span>
+                </button>
+                <button class="filter-chip filter-chip-low" onclick="filterBySeverity('low')">
+                    📌 Low <span class="chip-count">${TOTAL_LOW}</span>
+                </button>
+            </div>
+            <div class="sort-controls">
+                <span class="filter-label">Sort:</span>
+                <button class="sort-btn active" onclick="sortFindings('severity')" id="sort-severity">
+                    ↕️ Severity
+                </button>
+                <button class="sort-btn" onclick="sortFindings('tool')" id="sort-tool">
+                    🔧 Tool
+                </button>
+            </div>
+        </div>
+        
+        <div class="filter-results" id="filter-results" style="display: none;">
+            <span class="filter-results-count" id="filter-count">Showing 0 findings</span>
+            <a class="clear-filter" onclick="filterBySeverity('all')">Clear Filter ✕</a>
         </div>
 
         <div class="tools-section">
@@ -1157,7 +1822,7 @@ cat >> "$OUTPUT_HTML" << EOF
                                 <div class="stat-item"><strong>Total Packages Cataloged:</strong> ${SBOM_PACKAGES}</div>
                             </div>
                         </div>
-                        <p class="no-findings">✅ Software Bill of Materials generated successfully</p>
+                        ${SBOM_FINDINGS}
                     </div>
                 </div>
             </div>
@@ -1183,6 +1848,13 @@ cat >> "$OUTPUT_HTML" << EOF
     </div>
 
     <script>
+        // Current filter state
+        let currentFilter = 'all';
+        let currentSort = 'severity';
+        
+        // Severity priority for sorting
+        const severityOrder = { 'critical': 0, 'high': 1, 'medium': 2, 'low': 3 };
+        
         function toggleTool(toolId) {
             const header = document.querySelector('#' + toolId + '-content').previousElementSibling;
             const content = document.getElementById(toolId + '-content');
@@ -1229,6 +1901,324 @@ cat >> "$OUTPUT_HTML" << EOF
             }
         }
         
+        // Filter findings by severity
+        function filterBySeverity(severity) {
+            currentFilter = severity;
+            
+            // Update chip active states
+            document.querySelectorAll('.filter-chip').forEach(chip => {
+                chip.classList.remove('active');
+            });
+            document.querySelector('.filter-chip-' + severity).classList.add('active');
+            
+            // Get all finding items
+            const findings = document.querySelectorAll('.finding-item');
+            let visibleCount = 0;
+            
+            findings.forEach(finding => {
+                if (severity === 'all') {
+                    finding.classList.remove('filtered-out');
+                    visibleCount++;
+                } else {
+                    const hasSeverity = finding.classList.contains('severity-' + severity);
+                    if (hasSeverity) {
+                        finding.classList.remove('filtered-out');
+                        visibleCount++;
+                    } else {
+                        finding.classList.add('filtered-out');
+                    }
+                }
+            });
+            
+            // Update tool card opacity based on visible findings
+            document.querySelectorAll('.tool-card').forEach(card => {
+                const visibleInCard = card.querySelectorAll('.finding-item:not(.filtered-out)').length;
+                if (severity !== 'all' && visibleInCard === 0) {
+                    card.classList.add('filtered-out');
+                } else {
+                    card.classList.remove('filtered-out');
+                }
+            });
+            
+            // Show/hide filter results bar
+            const resultsBar = document.getElementById('filter-results');
+            const countSpan = document.getElementById('filter-count');
+            
+            if (severity === 'all') {
+                resultsBar.style.display = 'none';
+            } else {
+                resultsBar.style.display = 'flex';
+                countSpan.textContent = 'Showing ' + visibleCount + ' ' + severity.toUpperCase() + ' findings';
+            }
+            
+            // Expand tools with visible findings
+            if (severity !== 'all') {
+                document.querySelectorAll('.tool-card:not(.filtered-out)').forEach(card => {
+                    const content = card.querySelector('.tool-content');
+                    const header = card.querySelector('.tool-header');
+                    if (content && !content.classList.contains('active')) {
+                        header.classList.add('active');
+                        content.classList.add('active');
+                    }
+                });
+            }
+        }
+        
+        // Sort findings within each tool
+        function sortFindings(sortType) {
+            currentSort = sortType;
+            
+            // Update sort button states
+            document.querySelectorAll('.sort-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('sort-' + sortType).classList.add('active');
+            
+            // Get all tool finding containers
+            document.querySelectorAll('.tool-findings').forEach(container => {
+                const findings = Array.from(container.querySelectorAll('.finding-item'));
+                
+                if (findings.length === 0) return;
+                
+                // Sort based on type
+                if (sortType === 'severity') {
+                    findings.sort((a, b) => {
+                        const aSeverity = getSeverityFromClasses(a.classList);
+                        const bSeverity = getSeverityFromClasses(b.classList);
+                        return severityOrder[aSeverity] - severityOrder[bSeverity];
+                    });
+                } else if (sortType === 'tool') {
+                    // Already grouped by tool, so just sort by tool badge text
+                    findings.sort((a, b) => {
+                        const aTool = a.querySelector('.badge-tool')?.textContent || '';
+                        const bTool = b.querySelector('.badge-tool')?.textContent || '';
+                        return aTool.localeCompare(bTool);
+                    });
+                }
+                
+                // Re-append in sorted order (moves elements)
+                findings.forEach(finding => container.appendChild(finding));
+            });
+        }
+        
+        // Helper to get severity from class list
+        function getSeverityFromClasses(classList) {
+            if (classList.contains('severity-critical')) return 'critical';
+            if (classList.contains('severity-high')) return 'high';
+            if (classList.contains('severity-medium')) return 'medium';
+            if (classList.contains('severity-low')) return 'low';
+            return 'low';
+        }
+        
+        // Click on stat cards to filter
+        document.querySelectorAll('.stat-card').forEach(card => {
+            card.style.cursor = 'pointer';
+            card.addEventListener('click', () => {
+                if (card.classList.contains('critical-stat')) filterBySeverity('critical');
+                else if (card.classList.contains('high-stat')) filterBySeverity('high');
+                else if (card.classList.contains('medium-stat')) filterBySeverity('medium');
+                else if (card.classList.contains('low-stat')) filterBySeverity('low');
+            });
+        });
+        
+        // Filter SBOM packages by search term
+        let currentSBOMTypeFilter = 'all';
+        let currentSBOMSort = 'name';
+        
+        function filterSBOMPackages(searchTerm) {
+            const packages = document.querySelectorAll('.sbom-package-item');
+            const term = searchTerm.toLowerCase().trim();
+            let visibleCount = 0;
+            
+            packages.forEach(pkg => {
+                const name = pkg.dataset.name || '';
+                const type = pkg.dataset.type || '';
+                const version = pkg.dataset.version || '';
+                const language = pkg.dataset.language || '';
+                
+                const matchesSearch = term === '' || 
+                    name.includes(term) || 
+                    type.toLowerCase().includes(term) || 
+                    version.toLowerCase().includes(term) ||
+                    language.toLowerCase().includes(term);
+                
+                const matchesType = currentSBOMTypeFilter === 'all' || type === currentSBOMTypeFilter;
+                
+                if (matchesSearch && matchesType) {
+                    pkg.classList.remove('filtered-out');
+                    visibleCount++;
+                } else {
+                    pkg.classList.add('filtered-out');
+                }
+            });
+            
+            updateSBOMResultsBar(visibleCount, term !== '' || currentSBOMTypeFilter !== 'all');
+        }
+        
+        // Filter SBOM by package type
+        function filterSBOMByType(button, type) {
+            currentSBOMTypeFilter = type;
+            
+            // Update active chip state
+            document.querySelectorAll('.sbom-filter-chip').forEach(chip => {
+                chip.classList.remove('active');
+            });
+            button.classList.add('active');
+            
+            // Re-apply filters
+            const searchTerm = document.getElementById('sbom-search')?.value || '';
+            filterSBOMPackages(searchTerm);
+        }
+        
+        // Sort SBOM packages
+        function sortSBOMPackages(sortBy) {
+            currentSBOMSort = sortBy;
+            
+            // Update active button
+            document.querySelectorAll('.sbom-sort-btn').forEach(btn => btn.classList.remove('active'));
+            document.getElementById('sbom-sort-' + sortBy)?.classList.add('active');
+            
+            const container = document.getElementById('sbom-package-list');
+            if (!container) return;
+            
+            const packages = Array.from(container.querySelectorAll('.sbom-package-item'));
+            
+            packages.sort((a, b) => {
+                let aVal, bVal;
+                
+                switch(sortBy) {
+                    case 'name':
+                        aVal = a.dataset.name || '';
+                        bVal = b.dataset.name || '';
+                        return aVal.localeCompare(bVal);
+                    case 'type':
+                        aVal = a.dataset.type || '';
+                        bVal = b.dataset.type || '';
+                        return aVal.localeCompare(bVal) || (a.dataset.name || '').localeCompare(b.dataset.name || '');
+                    case 'version':
+                        aVal = a.dataset.version || '0';
+                        bVal = b.dataset.version || '0';
+                        // Simple version comparison
+                        return bVal.localeCompare(aVal, undefined, {numeric: true});
+                    default:
+                        return 0;
+                }
+            });
+            
+            // Re-append in sorted order
+            packages.forEach(pkg => container.appendChild(pkg));
+        }
+        
+        // Update SBOM results bar
+        function updateSBOMResultsBar(count, hasFilter) {
+            const countEl = document.getElementById('sbom-results-count');
+            const clearEl = document.getElementById('sbom-clear-filter');
+            
+            if (countEl) {
+                let filterText = '';
+                if (currentSBOMTypeFilter !== 'all') {
+                    filterText = ' (' + currentSBOMTypeFilter + ')';
+                }
+                countEl.textContent = 'Showing ' + count + ' packages' + filterText;
+            }
+            
+            if (clearEl) {
+                clearEl.style.display = hasFilter ? 'inline' : 'none';
+            }
+        }
+        
+        // Reset SBOM filters
+        function resetSBOMFilters() {
+            currentSBOMTypeFilter = 'all';
+            
+            // Reset search
+            const searchInput = document.getElementById('sbom-search');
+            if (searchInput) searchInput.value = '';
+            
+            // Reset type filter chips
+            document.querySelectorAll('.sbom-filter-chip').forEach(chip => {
+                chip.classList.remove('active');
+                if (chip.dataset.type === 'all') chip.classList.add('active');
+            });
+            
+            // Show all packages
+            document.querySelectorAll('.sbom-package-item').forEach(pkg => {
+                pkg.classList.remove('filtered-out');
+            });
+            
+            // Update results bar
+            const totalPackages = document.querySelectorAll('.sbom-package-item').length;
+            updateSBOMResultsBar(totalPackages, false);
+        }
+        
+        // Trivy-specific filters
+        let currentTrivyStatusFilter = 'all';
+        let currentTrivySearchTerm = '';
+        
+        function filterTrivyByStatus(status) {
+            currentTrivyStatusFilter = status;
+            
+            // Update button states in trivy section
+            const trivyContent = document.getElementById('trivy-content');
+            if (trivyContent) {
+                trivyContent.querySelectorAll('.trivy-controls .filter-chip').forEach(btn => {
+                    btn.classList.remove('active');
+                });
+                event.target.classList.add('active');
+            }
+            
+            applyTrivyFilters();
+        }
+        
+        function filterTrivyBySearch(searchTerm) {
+            currentTrivySearchTerm = searchTerm.toLowerCase().trim();
+            applyTrivyFilters();
+        }
+        
+        function applyTrivyFilters() {
+            const trivyContent = document.getElementById('trivy-content');
+            if (!trivyContent) return;
+            
+            const findings = trivyContent.querySelectorAll('.finding-item');
+            let visibleCount = 0;
+            
+            findings.forEach(finding => {
+                let showByStatus = true;
+                let showBySearch = true;
+                
+                // Check status filter
+                if (currentTrivyStatusFilter !== 'all') {
+                    const status = finding.dataset.status || '';
+                    if (currentTrivyStatusFilter === 'fixed') {
+                        showByStatus = status === 'fixed';
+                    } else if (currentTrivyStatusFilter === 'affected') {
+                        showByStatus = status !== 'fixed';
+                    }
+                }
+                
+                // Check search filter
+                if (currentTrivySearchTerm) {
+                    const cve = (finding.dataset.cve || '').toLowerCase();
+                    const pkg = (finding.dataset.pkg || '').toLowerCase();
+                    const title = (finding.querySelector('.finding-title')?.textContent || '').toLowerCase();
+                    const desc = (finding.querySelector('.finding-desc')?.textContent || '').toLowerCase();
+                    
+                    showBySearch = cve.includes(currentTrivySearchTerm) || 
+                                   pkg.includes(currentTrivySearchTerm) ||
+                                   title.includes(currentTrivySearchTerm) ||
+                                   desc.includes(currentTrivySearchTerm);
+                }
+                
+                if (showByStatus && showBySearch) {
+                    finding.classList.remove('filtered-out');
+                    visibleCount++;
+                } else {
+                    finding.classList.add('filtered-out');
+                }
+            });
+            
+            // Show filtered count
+            console.log('Trivy filter: showing ' + visibleCount + ' of ' + findings.length);
+        }
+        
         // Auto-expand first tool with findings
         window.addEventListener('DOMContentLoaded', () => {
             const badges = Array.from(document.querySelectorAll('.tool-stat-badge'));
@@ -1239,6 +2229,9 @@ cat >> "$OUTPUT_HTML" << EOF
                 const toolHeader = toolCard.querySelector('.tool-header');
                 toolHeader.click();
             }
+            
+            // Initial sort by severity
+            sortFindings('severity');
         });
     </script>
 </body>
