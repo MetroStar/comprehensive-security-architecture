@@ -16,10 +16,6 @@ source "$SCRIPT_DIR/scan-directory-template.sh"
 # Initialize scan environment for Checkov
 init_scan_environment "checkov"
 
-# Set compatibility paths
-REPORTS_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
-HELM_OUTPUT_DIR="$REPORTS_ROOT/reports/helm-packages"
-
 # Extract scan information
 if [[ -n "$SCAN_ID" ]]; then
     TARGET_NAME=$(echo "$SCAN_ID" | cut -d'_' -f1)

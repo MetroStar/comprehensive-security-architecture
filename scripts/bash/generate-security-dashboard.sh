@@ -12,12 +12,20 @@ WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 # Default paths
 SCANS_DIR="${WORKSPACE_ROOT}/scans"
 
-# Get the most recent scan directory
-LATEST_SCAN=$(find "$SCANS_DIR" -maxdepth 1 -type d -name "*_rnelson_*" | sort -r | head -n 1)
-
-if [ -z "$LATEST_SCAN" ]; then
-    echo "No scan directories found"
-    exit 1
+# Use SCAN_DIR if provided, otherwise auto-detect latest
+if [[ -n "$SCAN_DIR" ]]; then
+    LATEST_SCAN="$SCAN_DIR"
+    echo "Using provided scan directory: $(basename "$LATEST_SCAN")"
+else
+    # Get the most recent scan directory (any username)
+    LATEST_SCAN=$(find "$SCANS_DIR" -maxdepth 1 -type d -name "*_*_*" 2>/dev/null | sort -r | head -n 1)
+    
+    if [ -z "$LATEST_SCAN" ]; then
+        echo "❌ No scan directories found in $SCANS_DIR"
+        exit 1
+    fi
+    
+    echo "🔍 Auto-detected latest scan: $(basename "$LATEST_SCAN")"
 fi
 
 SCAN_NAME=$(basename "$LATEST_SCAN")
@@ -95,7 +103,7 @@ else
 fi
 
 # SonarQube
-SONAR_DIR="${WORKSPACE_ROOT}/reports/sonar-reports"
+SONAR_DIR="${LATEST_SCAN}/sonar"
 LATEST_SONAR=$(find "$SONAR_DIR" -name "*_sonar-analysis-results.json" -type f 2>/dev/null | sort -r | head -n 1 || echo "")
 
 if [ -f "$LATEST_SONAR" ]; then

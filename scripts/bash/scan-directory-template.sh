@@ -7,36 +7,22 @@
 init_scan_environment() {
     local tool_name="$1"
     
-    # Use SCAN_DIR if provided (from orchestrator), otherwise create individual structure
-    if [[ -n "$SCAN_DIR" ]]; then
-        # Orchestrated scan - use centralized scan directory
-        OUTPUT_DIR="$SCAN_DIR/$tool_name"
-        SCAN_LOG="$SCAN_DIR/$tool_name/scan.log"
-        CURRENT_LINK_DIR="$(dirname "$(dirname "$SCAN_DIR")")/reports/${tool_name}-reports"
-        
-        # Create tool-specific directory within scan
-        mkdir -p "$OUTPUT_DIR"
-        mkdir -p "$CURRENT_LINK_DIR"
-        
-        echo "🗂️  Using scan directory: $SCAN_DIR"
-        echo "📁 Tool output: $OUTPUT_DIR"
-    else
-        # Standalone execution - use traditional reports structure
-        SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-        REPORTS_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
-        
-        # Generate scan ID for standalone execution
-        REPO_PATH="${1:-${TARGET_DIR:-$(pwd)}}"
-        TARGET_NAME=$(basename "$REPO_PATH")
-        USERNAME=$(whoami)
-        TIMESTAMP=$(date '+%Y-%m-%d_%H-%M-%S')
-        SCAN_ID="${TARGET_NAME}_${USERNAME}_${TIMESTAMP}"
-        
-        OUTPUT_DIR="$REPORTS_ROOT/reports/${tool_name}-reports"
-        SCAN_LOG="$OUTPUT_DIR/${SCAN_ID}_${tool_name}-scan.log"
-        CURRENT_LINK_DIR="$OUTPUT_DIR"
-        
-        mkdir -p "$OUTPUT_DIR"
+    # SCAN_DIR must be provided by orchestrator
+    if [[ -z "$SCAN_DIR" ]]; then
+        echo "❌ ERROR: SCAN_DIR environment variable must be set"
+        echo "This tool must be called from run-target-security-scan.sh"
+        exit 1
+    fi
+    
+    # Use centralized scan directory structure
+    OUTPUT_DIR="$SCAN_DIR/$tool_name"
+    SCAN_LOG="$SCAN_DIR/$tool_name/scan.log"
+    
+    # Create tool-specific directory within scan
+    mkdir -p "$OUTPUT_DIR"
+    
+    echo "🗂️  Using scan directory: $SCAN_DIR"
+    echo "📁 Tool output: $OUTPUT_DIR"
         
         echo "📁 Standalone mode - using reports directory: $OUTPUT_DIR"
     fi

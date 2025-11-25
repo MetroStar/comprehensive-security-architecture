@@ -17,14 +17,23 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
-# Use SCAN_DIR if provided, otherwise fall back to legacy reports structure
-if [[ -n "$SCAN_DIR" ]]; then
-    UNIFIED_DIR="$SCAN_DIR/consolidated-reports"
-    echo -e "${GREEN}📁 Using scan directory for consolidated reports${NC}"
-else
-    UNIFIED_DIR="$REPO_ROOT/reports/security-reports"
-    echo -e "${YELLOW}⚠️  Using legacy reports directory (SCAN_DIR not set)${NC}"
+# Auto-detect latest scan if SCAN_DIR not provided
+if [[ -z "$SCAN_DIR" ]]; then
+    SCANS_DIR="$REPO_ROOT/scans"
+    LATEST_SCAN=$(find "$SCANS_DIR" -maxdepth 1 -type d -name "*_*_*" 2>/dev/null | sort -r | head -n 1)
+    
+    if [[ -z "$LATEST_SCAN" ]]; then
+        echo -e "${RED}❌ ERROR: No scan directories found in $SCANS_DIR${NC}"
+        echo -e "${YELLOW}Run a scan first using: ./run-target-security-scan.sh <target> <mode>${NC}"
+        exit 1
+    fi
+    
+    SCAN_DIR="$LATEST_SCAN"
+    echo -e "${CYAN}🔍 Auto-detected latest scan: $(basename "$SCAN_DIR")${NC}"
 fi
+
+UNIFIED_DIR="$SCAN_DIR/consolidated-reports"
+echo -e "${GREEN}📁 Using scan directory for consolidated reports${NC}"
 
 TARGET_NAME=$(basename "${TARGET_DIR:-$(pwd)}")
 USERNAME=$(whoami)
@@ -391,29 +400,17 @@ echo -e "${BLUE}🔄 Consolidating security reports from all tools...${NC}"
 echo
 
 # Determine source directories based on whether we're using scan directory or legacy structure
-if [[ -n "$SCAN_DIR" ]]; then
-    # Use scan directory structure
-    consolidate_tool_reports "SonarQube" "$SCAN_DIR/sonar" "*.json"
-    consolidate_tool_reports "TruffleHog" "$SCAN_DIR/trufflehog" "*.json"
-    consolidate_tool_reports "ClamAV" "$SCAN_DIR/clamav" "*.json"
-    consolidate_tool_reports "Helm" "$SCAN_DIR/helm" "*.yaml"
-    consolidate_tool_reports "Checkov" "$SCAN_DIR/checkov" "*.json"
-    consolidate_tool_reports "Trivy" "$SCAN_DIR/trivy" "*.json"
-    consolidate_tool_reports "Grype" "$SCAN_DIR/grype" "*.json"
-    consolidate_tool_reports "Xeol" "$SCAN_DIR/xeol" "*.json"
-    consolidate_tool_reports "SBOM" "$SCAN_DIR/sbom" "*.json"
-    consolidate_tool_reports "Anchore" "$SCAN_DIR/anchore" "*.json"
-else
-    # Use legacy reports structure
-    consolidate_tool_reports "SonarQube" "$REPO_ROOT/reports/sonar-reports" "*.json"
-    consolidate_tool_reports "TruffleHog" "$REPO_ROOT/trufflehog-reports" "*.json"
-    consolidate_tool_reports "ClamAV" "$REPO_ROOT/clamav-reports" "*.json"
-    consolidate_tool_reports "Helm" "$REPO_ROOT/helm-packages" "*.yaml"
-    consolidate_tool_reports "Checkov" "$REPO_ROOT/checkov-reports" "*.json"
-    consolidate_tool_reports "Trivy" "$REPO_ROOT/trivy-reports" "*.json"
-    consolidate_tool_reports "Grype" "$REPO_ROOT/grype-reports" "*.json"
-    consolidate_tool_reports "Xeol" "$REPO_ROOT/xeol-reports" "*.json"
-fi
+# Consolidate all tool reports from scan directory
+consolidate_tool_reports "SonarQube" "$SCAN_DIR/sonar" "*.json"
+consolidate_tool_reports "TruffleHog" "$SCAN_DIR/trufflehog" "*.json"
+consolidate_tool_reports "ClamAV" "$SCAN_DIR/clamav" "*.json"
+consolidate_tool_reports "Helm" "$SCAN_DIR/helm" "*.yaml"
+consolidate_tool_reports "Checkov" "$SCAN_DIR/checkov" "*.json"
+consolidate_tool_reports "Trivy" "$SCAN_DIR/trivy" "*.json"
+consolidate_tool_reports "Grype" "$SCAN_DIR/grype" "*.json"
+consolidate_tool_reports "Xeol" "$SCAN_DIR/xeol" "*.json"
+consolidate_tool_reports "SBOM" "$SCAN_DIR/sbom" "*.json"
+consolidate_tool_reports "Anchore" "$SCAN_DIR/anchore" "*.json"
 
 # Generate comprehensive security dashboard
 echo -e "${PURPLE}📈 Generating interactive security dashboard...${NC}"

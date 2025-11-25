@@ -11,13 +11,17 @@ WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 # Default paths
 SCANS_DIR="${WORKSPACE_ROOT}/scans"
-OUTPUT_DIR="${WORKSPACE_ROOT}/reports/security-reports/dashboards"
-OUTPUT_HTML="${OUTPUT_DIR}/security-dashboard.html"
 
 # Get the most recent scan directory
 LATEST_SCAN=$(find "$SCANS_DIR" -maxdepth 1 -type d -name "*_rnelson_*" | sort -r | head -n 1)
 
 if [ -z "$LATEST_SCAN" ]; then
+    echo "❌ No scan directories found"
+    exit 1
+fi
+
+OUTPUT_DIR="${LATEST_SCAN}/consolidated-reports/dashboards"
+OUTPUT_HTML="${OUTPUT_DIR}/security-dashboard.html"
     echo "No scan directories found"
     exit 1
 fi
@@ -164,7 +168,7 @@ parse_helm() {
 
 # Parse SonarQube data
 parse_sonar() {
-    local sonar_dir="${WORKSPACE_ROOT}/reports/sonar-reports"
+    local sonar_dir="${LATEST_SCAN}/sonar"
     local latest_sonar=$(find "$sonar_dir" -name "*_sonar-analysis-results.json" -type f 2>/dev/null | sort -r | head -n 1)
     
     if [ -f "$latest_sonar" ]; then
