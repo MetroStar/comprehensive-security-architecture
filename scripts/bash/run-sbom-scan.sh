@@ -305,7 +305,7 @@ $(find "$OUTPUT_DIR" -name "${SCAN_ID}_sbom-*.json" | grep -v summary | while re
     echo "    {\"type\": \"$type\", \"file\": \"$(basename "$file")\", \"artifacts\": $artifact_count},"
 done | sed '$ s/,$//')
   ],
-  "total_artifacts": $(find "$OUTPUT_DIR" -name "${SCAN_ID}_sbom-*.json" | grep -v summary | xargs jq -r '.artifacts | length' 2>/dev/null | tr '\n' '+' | sed 's/+$//' | bc 2>/dev/null || echo "0"),
+  "total_artifacts": $(find "$OUTPUT_DIR" -name "${SCAN_ID}_sbom-*.json" | grep -v summary | xargs jq -r '.artifacts | length' 2>/dev/null | tr '\n' '+' | sed 's/+$//' | sed 's/^$/0/' | bc 2>/dev/null || echo "0"),
   "metadata": {
     "generator": "comprehensive-security-architecture",
     "version": "1.0.0"
@@ -334,7 +334,7 @@ $(find "$OUTPUT_DIR" -name "*.json" | grep -v summary | while read file; do
     echo "    {\"type\": \"$type\", \"file\": \"$(basename "$file")\", \"artifacts\": $artifact_count},"
 done | sed '$ s/,$//')
   ],
-  "total_artifacts": $(find "$OUTPUT_DIR" -name "*.json" | grep -v summary | xargs jq -r '.artifacts | length' 2>/dev/null | tr '\n' '+' | sed 's/+$//' | bc 2>/dev/null || echo "0"),
+  "total_artifacts": $(find "$OUTPUT_DIR" -name "*.json" | grep -v summary | xargs jq -r '.artifacts | length' 2>/dev/null | tr '\n' '+' | sed 's/+$//' | sed 's/^$/0/' | bc 2>/dev/null || echo "0"),
   "metadata": {
     "generator": "comprehensive-security-architecture",
     "version": "1.0.0"

@@ -513,3 +513,12 @@ echo -e "${CYAN}Scan Directory: $SCAN_DIR${NC}"
 echo -e "${CYAN}All scan artifacts stored in: $SCAN_DIR${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo ""
+
+# Automatically open the dashboard
+DASHBOARD_PATH="$SCAN_DIR/consolidated-reports/dashboards/security-dashboard.html"
+if [[ -f "$DASHBOARD_PATH" ]]; then
+    echo -e "${GREEN}🌐 Opening security dashboard...${NC}"
+    open "$DASHBOARD_PATH"
+else
+    echo -e "${YELLOW}⚠️  Dashboard not found at: $DASHBOARD_PATH${NC}"
+fi

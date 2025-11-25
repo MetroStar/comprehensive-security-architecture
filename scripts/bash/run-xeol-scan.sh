@@ -91,7 +91,7 @@ BASE_IMAGES=(
 for image in "${BASE_IMAGES[@]}"; do
     if command -v docker &> /dev/null; then
         echo -e "${BLUE}📦 Scanning base image: $image${NC}"
-        local image_name=$(echo $image | tr ':/' '-')
+        image_name=$(echo $image | tr ':/' '-')
         scan_target "image" "$image" "xeol-base-$image_name-results-$TIMESTAMP.json"
         # Create current symlink
         ln -sf "xeol-base-$image_name-results-$TIMESTAMP.json" "$OUTPUT_DIR/xeol-base-$image_name-results.json"

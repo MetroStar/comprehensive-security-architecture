@@ -74,7 +74,25 @@ from datetime import datetime
 
 try:
     with open('$input_file', 'r') as f:
-        data = json.load(f)
+        # Try to load as standard JSON first
+        try:
+            data = json.load(f)
+        except json.JSONDecodeError:
+            # If that fails, try NDJSON (newline-delimited JSON)
+            f.seek(0)
+            content = f.read().strip()
+            if not content:
+                print('ERROR: Empty file', file=sys.stderr)
+                sys.exit(1)
+            # Try parsing each line as JSON
+            try:
+                data = [json.loads(line) for line in content.split('\\n') if line.strip()]
+                if not data:
+                    print('ERROR: No valid JSON found', file=sys.stderr)
+                    sys.exit(1)
+            except json.JSONDecodeError as e:
+                print(f'ERROR: Invalid JSON format - {str(e)}', file=sys.stderr)
+                sys.exit(1)
     
     html_content = '''<!DOCTYPE html>
 <html lang=\"en\">
@@ -270,8 +288,25 @@ import sys
 from datetime import datetime
 
 try:
+    # Try to load as regular JSON first
     with open('$input_file', 'r') as f:
-        data = json.load(f)
+        content = f.read().strip()
+        if not content:
+            data = []
+        else:
+            try:
+                # Try regular JSON first
+                data = json.loads(content)
+            except json.JSONDecodeError:
+                # If that fails, try NDJSON (newline-delimited JSON)
+                data = []
+                for line in content.split('\n'):
+                    line = line.strip()
+                    if line:
+                        try:
+                            data.append(json.loads(line))
+                        except json.JSONDecodeError:
+                            pass
     
     md_content = f'''# $tool_name Security Report
 
@@ -345,10 +380,10 @@ try:
     
     else:
         # Generic format
-        md_content += f'**Total Items:** {len(data) if isinstance(data, list) else 1}\n\n'
-        md_content += '```json\n'
+        md_content += f'**Total Items:** {len(data) if isinstance(data, list) else 1}\\n\\n'
+        md_content += '```json\\n'
         md_content += json.dumps(data, indent=2)[:2000]
-        md_content += '\n```\n'
+        md_content += '\\n```\\n'
     
     with open('$output_file', 'w') as f:
         f.write(md_content)

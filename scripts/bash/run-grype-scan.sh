@@ -14,6 +14,13 @@ init_scan_environment "grype"
 
 # Set REPO_PATH and extract scan information
 REPO_PATH="${1:-${TARGET_DIR:-$(pwd)}}"
+# Handle special scan type keywords
+if [[ "$REPO_PATH" == "filesystem" ]] || [[ "$REPO_PATH" == "images" ]] || [[ "$REPO_PATH" == "base" ]]; then
+    SCAN_MODE="$REPO_PATH"
+    REPO_PATH="${TARGET_DIR:-$(pwd)}"
+else
+    SCAN_MODE="all"
+fi
 if [[ -n "$SCAN_ID" ]]; then
     TARGET_NAME=$(echo "$SCAN_ID" | cut -d'_' -f1)
     USERNAME=$(echo "$SCAN_ID" | cut -d'_' -f2)

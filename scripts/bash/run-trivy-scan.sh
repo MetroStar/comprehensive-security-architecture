@@ -44,10 +44,20 @@ run_trivy_scan() {
         
         # Run trivy scan with Docker
         if command -v docker &> /dev/null; then
-            docker run --rm -v "$target:/workspace" \
-                aquasec/trivy:latest \
-                fs /workspace \
-                --format json 2>&1 | tee -a "$SCAN_LOG" > "$output_file"
+            # Determine if this is an image scan or filesystem scan
+            if [[ "$scan_type" == "base-"* ]] || [[ "$target" == *":"* ]]; then
+                # Image scan - redirect stderr to log, keep JSON clean
+                docker run --rm \
+                    aquasec/trivy:latest \
+                    image "$target" \
+                    --format json --quiet 2>> "$SCAN_LOG" > "$output_file"
+            else
+                # Filesystem scan - redirect stderr to log, keep JSON clean
+                docker run --rm -v "${target}:/workspace:ro" \
+                    aquasec/trivy:latest \
+                    fs /workspace \
+                    --format json --quiet 2>> "$SCAN_LOG" > "$output_file"
+            fi
             
             if [ $? -eq 0 ]; then
                 echo -e "${GREEN}✅ Scan completed: $output_file${NC}"
