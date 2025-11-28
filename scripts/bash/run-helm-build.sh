@@ -14,6 +14,57 @@ CYAN='\033[0;36m'
 WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
+# Help function
+show_help() {
+    echo -e "${WHITE}Helm Chart Builder & Validator${NC}"
+    echo ""
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Builds and validates Helm charts for Kubernetes deployment."
+    echo "Includes dependency resolution, linting, and template rendering."
+    echo ""
+    echo "Options:"
+    echo "  -h, --help          Show this help message and exit"
+    echo ""
+    echo "Environment Variables:"
+    echo "  TARGET_DIR          Directory containing Helm chart (default: current directory)"
+    echo "  SCAN_ID             Override auto-generated scan ID"
+    echo "  SCAN_DIR            Override output directory for build results"
+    echo "  AWS_REGION          AWS region for ECR (default: us-gov-west-1)"
+    echo ""
+    echo "Output:"
+    echo "  Results are saved to: scans/{SCAN_ID}/helm/"
+    echo "  - helm-build-results.json       Build and validation results"
+    echo "  - helm-template-output.yaml     Rendered templates"
+    echo "  - helm-lint.log                 Linting output"
+    echo ""
+    echo "Build Steps:"
+    echo "  1. AWS ECR authentication (optional)"
+    echo "  2. Dependency resolution (helm dependency update)"
+    echo "  3. Chart linting (helm lint)"
+    echo "  4. Template rendering (helm template)"
+    echo "  5. Validation summary"
+    echo ""
+    echo "Examples:"
+    echo "  $0                              # Build chart in current directory"
+    echo "  TARGET_DIR=/path/to/chart $0    # Build specific chart"
+    echo ""
+    echo "Notes:"
+    echo "  - Requires Helm 3.x to be installed"
+    echo "  - AWS ECR login optional for private dependencies"
+    echo "  - Creates stub dependencies if authentication skipped"
+    exit 0
+}
+
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        -h|--help)
+            show_help
+            ;;
+    esac
+done
+
 # Initialize scan environment using scan directory approach
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

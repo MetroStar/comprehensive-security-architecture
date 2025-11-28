@@ -14,6 +14,54 @@ CYAN='\033[0;36m'
 WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
+# Help function
+show_help() {
+    echo -e "${WHITE}Xeol End-of-Life Detection Scanner${NC}"
+    echo ""
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Detects End-of-Life (EOL) packages and technologies in your project."
+    echo "Identifies software that is no longer maintained or receiving security updates."
+    echo ""
+    echo "Options:"
+    echo "  -h, --help          Show this help message and exit"
+    echo ""
+    echo "Environment Variables:"
+    echo "  TARGET_DIR          Directory to scan (default: current directory)"
+    echo "  SCAN_ID             Override auto-generated scan ID"
+    echo "  SCAN_DIR            Override output directory for scan results"
+    echo ""
+    echo "Output:"
+    echo "  Results are saved to: scans/{SCAN_ID}/xeol/"
+    echo "  - xeol-filesystem-results.json    EOL software detected"
+    echo "  - xeol-scan.log                   Scan process log"
+    echo ""
+    echo "Detection Capabilities:"
+    echo "  - Operating system EOL detection"
+    echo "  - Programming language runtime EOL (Node.js, Python, etc.)"
+    echo "  - Framework and library EOL status"
+    echo "  - Database EOL status"
+    echo ""
+    echo "Examples:"
+    echo "  $0                              # Scan current directory"
+    echo "  TARGET_DIR=/path/to/project $0  # Scan specific directory"
+    echo ""
+    echo "Notes:"
+    echo "  - Requires Docker to be installed and running"
+    echo "  - Uses anchore/xeol:latest Docker image"
+    echo "  - EOL dates sourced from endoflife.date"
+    exit 0
+}
+
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        -h|--help)
+            show_help
+            ;;
+    esac
+done
+
 # Initialize scan environment using scan directory approach
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 

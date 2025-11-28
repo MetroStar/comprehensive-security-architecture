@@ -6,6 +6,69 @@
 # Use less strict mode for robustness with jq parsing
 set -u
 
+# Colors for help output
+WHITE='\033[1;37m'
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# Help function
+show_help() {
+    echo -e "${WHITE}Interactive Security Dashboard Generator${NC}"
+    echo ""
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Creates an interactive HTML dashboard consolidating all security scan results"
+    echo "with expandable sections, filtering, sorting, and detailed vulnerability views."
+    echo ""
+    echo "Options:"
+    echo "  -h, --help          Show this help message and exit"
+    echo ""
+    echo "Environment Variables:"
+    echo "  SCAN_DIR            Specific scan directory to generate dashboard for"
+    echo "                      (default: auto-detects latest scan)"
+    echo ""
+    echo "Output:"
+    echo "  Dashboard saved to: {SCAN_DIR}/consolidated-reports/dashboards/security-dashboard.html"
+    echo ""
+    echo "Dashboard Features:"
+    echo "  - Severity summary with clickable filter chips"
+    echo "  - Expandable sections for each security tool"
+    echo "  - Detailed vulnerability information"
+    echo "  - False positive assessment checklists"
+    echo "  - SBOM package viewer with search"
+    echo "  - Sortable and filterable findings"
+    echo "  - CWE IDs, PURL, and CVE links"
+    echo ""
+    echo "Supported Tools:"
+    echo "  - Trivy (container vulnerabilities)"
+    echo "  - Grype (dependency vulnerabilities)"
+    echo "  - TruffleHog (secret detection)"
+    echo "  - Checkov (IaC security)"
+    echo "  - ClamAV (malware detection)"
+    echo "  - Xeol (EOL detection)"
+    echo "  - SBOM (software inventory)"
+    echo "  - SonarQube (code quality)"
+    echo ""
+    echo "Examples:"
+    echo "  $0                              # Generate for latest scan"
+    echo "  SCAN_DIR=/path/to/scan $0       # Generate for specific scan"
+    echo ""
+    echo "Notes:"
+    echo "  - Requires jq to be installed"
+    echo "  - Auto-detects latest scan in scans/ directory"
+    exit 0
+}
+
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        -h|--help)
+            show_help
+            ;;
+    esac
+done
+
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 WORKSPACE_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

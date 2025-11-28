@@ -3,6 +3,67 @@
 # SBOM (Software Bill of Materials) Generation Script
 # Generates comprehensive software inventory using Syft from Anchore
 
+# Colors for help output
+WHITE='\033[1;37m'
+NC='\033[0m'
+
+# Help function
+show_help() {
+    echo -e "${WHITE}SBOM (Software Bill of Materials) Generator${NC}"
+    echo ""
+    echo "Usage: $0 [OPTIONS] [TARGET_DIRECTORY]"
+    echo ""
+    echo "Generates comprehensive software inventory using Syft from Anchore."
+    echo "Creates a complete list of all packages, libraries, and dependencies."
+    echo ""
+    echo "Arguments:"
+    echo "  TARGET_DIRECTORY    Path to directory to scan (default: current directory)"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help          Show this help message and exit"
+    echo ""
+    echo "Environment Variables:"
+    echo "  TARGET_DIR          Alternative way to specify target directory"
+    echo "  SCAN_ID             Override auto-generated scan ID"
+    echo "  SCAN_DIR            Override output directory for scan results"
+    echo ""
+    echo "Output:"
+    echo "  Results are saved to: scans/{SCAN_ID}/sbom/"
+    echo "  - sbom-results.json             Full SBOM in SPDX JSON format"
+    echo "  - sbom-cyclonedx.json           CycloneDX format"
+    echo "  - sbom-summary.json             Package summary statistics"
+    echo "  - sbom-scan.log                 Scan process log"
+    echo ""
+    echo "Package Types Detected:"
+    echo "  - npm (Node.js packages)"
+    echo "  - pip/poetry (Python packages)"
+    echo "  - gem (Ruby packages)"
+    echo "  - maven/gradle (Java packages)"
+    echo "  - go modules"
+    echo "  - Rust crates"
+    echo "  - OS packages (deb, rpm, apk)"
+    echo ""
+    echo "Examples:"
+    echo "  $0                              # Generate SBOM for current directory"
+    echo "  $0 /path/to/project             # Generate SBOM for specific directory"
+    echo "  TARGET_DIR=/app $0              # Generate via environment variable"
+    echo ""
+    echo "Notes:"
+    echo "  - Requires Docker to be installed and running"
+    echo "  - Uses anchore/syft:latest Docker image"
+    echo "  - Generates multiple output formats for compatibility"
+    exit 0
+}
+
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        -h|--help)
+            show_help
+            ;;
+    esac
+done
+
 # Support target directory scanning - priority: command line arg, TARGET_DIR env var, current directory
 REPO_PATH="${1:-${TARGET_DIR:-$(pwd)}}"
 

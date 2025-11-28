@@ -13,6 +13,55 @@ CYAN='\033[0;36m'
 WHITE='\033[1;37m'
 NC='\033[0m'
 
+# Help function
+show_help() {
+    echo -e "${WHITE}Security Reports Consolidation${NC}"
+    echo ""
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Converts all security scan outputs to human-readable formats"
+    echo "and creates unified reports in multiple formats."
+    echo ""
+    echo "Options:"
+    echo "  -h, --help          Show this help message and exit"
+    echo ""
+    echo "Environment Variables:"
+    echo "  SCAN_DIR            Specific scan directory to consolidate"
+    echo "                      (default: auto-detects latest scan)"
+    echo ""
+    echo "Output Directory Structure:"
+    echo "  {SCAN_DIR}/consolidated-reports/"
+    echo "  ├── raw-data/           Original JSON files"
+    echo "  ├── html-reports/       HTML formatted reports"
+    echo "  ├── markdown-reports/   Markdown formatted reports"
+    echo "  ├── csv-reports/        CSV exports for spreadsheets"
+    echo "  └── dashboards/         Interactive dashboard"
+    echo ""
+    echo "Report Types Generated:"
+    echo "  - Individual tool reports (HTML, Markdown, CSV)"
+    echo "  - Unified security summary"
+    echo "  - Vulnerability index"
+    echo "  - Executive summary"
+    echo ""
+    echo "Examples:"
+    echo "  $0                              # Consolidate latest scan"
+    echo "  SCAN_DIR=/path/to/scan $0       # Consolidate specific scan"
+    echo ""
+    echo "Notes:"
+    echo "  - Requires Python 3 for some conversions"
+    echo "  - Auto-detects latest scan if SCAN_DIR not set"
+    exit 0
+}
+
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        -h|--help)
+            show_help
+            ;;
+    esac
+done
+
 # Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"

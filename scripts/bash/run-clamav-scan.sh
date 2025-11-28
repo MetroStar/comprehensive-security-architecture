@@ -3,6 +3,60 @@
 # ClamAV Multi-Target Malware Scanner
 # Comprehensive malware detection for repositories, containers, and filesystems
 
+# Colors for help output
+WHITE='\033[1;37m'
+NC='\033[0m'
+
+# Help function
+show_help() {
+    echo -e "${WHITE}ClamAV Multi-Target Malware Scanner${NC}"
+    echo ""
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Comprehensive malware detection for repositories, containers, and filesystems"
+    echo "using the ClamAV antivirus engine."
+    echo ""
+    echo "Options:"
+    echo "  -h, --help          Show this help message and exit"
+    echo ""
+    echo "Environment Variables:"
+    echo "  TARGET_DIR          Directory to scan (default: current directory)"
+    echo "  SCAN_ID             Override auto-generated scan ID"
+    echo "  SCAN_DIR            Override output directory for scan results"
+    echo ""
+    echo "Output:"
+    echo "  Results are saved to: scans/{SCAN_ID}/clamav/"
+    echo "  - clamav-detailed.log           Detailed scan output"
+    echo "  - clamav-results.json           JSON formatted results"
+    echo "  - clamav-scan.log               Scan process log"
+    echo ""
+    echo "Detection Capabilities:"
+    echo "  - Viruses, trojans, worms"
+    echo "  - Malicious scripts"
+    echo "  - Potentially unwanted applications (PUA)"
+    echo "  - Suspicious file patterns"
+    echo ""
+    echo "Examples:"
+    echo "  $0                              # Scan current directory"
+    echo "  TARGET_DIR=/path/to/project $0  # Scan specific directory"
+    echo ""
+    echo "Notes:"
+    echo "  - Requires Docker to be installed and running"
+    echo "  - Automatically skips node_modules directories"
+    echo "  - Uses clamav/clamav:latest Docker image"
+    echo "  - ARM64 (Apple Silicon) compatible"
+    exit 0
+}
+
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        -h|--help)
+            show_help
+            ;;
+    esac
+done
+
 # Initialize scan environment using scan directory approach
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -94,7 +148,7 @@ if command -v docker &> /dev/null; then
                 -v "$REPO_PATH:/workspace:ro" \
                 -v "$OUTPUT_DIR:/output" \
                 "$CLAMAV_IMAGE" \
-                clamscan -r --log=/output/${SCAN_ID}_clamav-detailed.log /workspace 2>&1 | tee -a "$SCAN_LOG"
+                clamscan -r --exclude-dir=node_modules --log=/output/${SCAN_ID}_clamav-detailed.log /workspace 2>&1 | tee -a "$SCAN_LOG"
             SCAN_RESULT=$?
         fi
     else
@@ -106,7 +160,7 @@ if command -v docker &> /dev/null; then
             -v "$REPO_PATH:/workspace:ro" \
             -v "$OUTPUT_DIR:/output" \
             "$CLAMAV_IMAGE" \
-            clamscan -r --log=/output/${SCAN_ID}_clamav-detailed.log /workspace 2>&1 | tee -a "$SCAN_LOG"
+            clamscan -r --exclude-dir=node_modules --log=/output/${SCAN_ID}_clamav-detailed.log /workspace 2>&1 | tee -a "$SCAN_LOG"
         SCAN_RESULT=$?
     fi
     

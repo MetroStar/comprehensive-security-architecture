@@ -3,6 +3,70 @@
 # SonarQube Analysis Script
 # Automatically sources .env.sonar if it exists
 
+# Colors for help output
+WHITE='\033[1;37m'
+NC='\033[0m'
+
+# Help function
+show_help() {
+    echo -e "${WHITE}SonarQube Code Quality Analysis${NC}"
+    echo ""
+    echo "Usage: $0 [OPTIONS] [TARGET_DIRECTORY]"
+    echo ""
+    echo "Runs SonarQube static code analysis for code quality and security."
+    echo "Automatically sources .env.sonar for configuration if present."
+    echo ""
+    echo "Arguments:"
+    echo "  TARGET_DIRECTORY    Path to directory to scan (default: current directory)"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help          Show this help message and exit"
+    echo ""
+    echo "Environment Variables:"
+    echo "  SONAR_HOST_URL      SonarQube server URL (default: https://sonarqube.cdao.us)"
+    echo "  SONAR_TOKEN         Authentication token for SonarQube"
+    echo "  SONAR_PROJECT_KEY   Project key in SonarQube"
+    echo "  SONAR_PROJECT_NAME  Display name for the project"
+    echo "  TARGET_DIR          Alternative way to specify target directory"
+    echo "  SCAN_ID             Override auto-generated scan ID"
+    echo ""
+    echo "Configuration Files (searched in order):"
+    echo "  1. {TARGET_DIR}/.env.sonar"
+    echo "  2. ./.env.sonar"
+    echo "  3. ~/.env.sonar"
+    echo ""
+    echo "Output:"
+    echo "  Results are saved to: scans/{SCAN_ID}/sonar/"
+    echo "  - sonar-analysis-results.json   Analysis results"
+    echo "  - sonar-scan.log                Scan process log"
+    echo ""
+    echo "Analysis Includes:"
+    echo "  - Code smells and technical debt"
+    echo "  - Security vulnerabilities"
+    echo "  - Bug detection"
+    echo "  - Code coverage (if configured)"
+    echo "  - Duplications"
+    echo ""
+    echo "Examples:"
+    echo "  $0                              # Analyze current directory"
+    echo "  $0 /path/to/project             # Analyze specific directory"
+    echo "  SONAR_TOKEN=xxx $0              # Analyze with token"
+    echo ""
+    echo "Notes:"
+    echo "  - Requires sonar-scanner CLI or Docker"
+    echo "  - Create .env.sonar with your credentials"
+    exit 0
+}
+
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        -h|--help)
+            show_help
+            ;;
+    esac
+done
+
 # Support target directory scanning - priority: command line arg, TARGET_DIR env var, current directory
 REPO_PATH="${1:-${TARGET_DIR:-$(pwd)}}"
 # Resolve to absolute path

@@ -14,6 +14,52 @@ CYAN='\033[0;36m'
 WHITE='\033[1;37m'
 NC='\033[0m' # No Color
 
+# Help function
+show_help() {
+    echo -e "${WHITE}Trivy Security Scanner${NC}"
+    echo ""
+    echo "Usage: $0 [OPTIONS] [TARGET_DIRECTORY]"
+    echo ""
+    echo "Performs comprehensive vulnerability scanning using Trivy."
+    echo "Scans containers, filesystems, and base images for security vulnerabilities."
+    echo ""
+    echo "Arguments:"
+    echo "  TARGET_DIRECTORY    Path to directory to scan (default: current directory)"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help          Show this help message and exit"
+    echo ""
+    echo "Environment Variables:"
+    echo "  TARGET_DIR          Alternative way to specify target directory"
+    echo "  SCAN_ID             Override auto-generated scan ID"
+    echo "  SCAN_DIR            Override output directory for scan results"
+    echo ""
+    echo "Output:"
+    echo "  Results are saved to: scans/{SCAN_ID}/trivy/"
+    echo "  - trivy-filesystem-results.json   Filesystem vulnerability scan"
+    echo "  - trivy-base-*.json               Base image scans (if images found)"
+    echo ""
+    echo "Examples:"
+    echo "  $0                              # Scan current directory"
+    echo "  $0 /path/to/project             # Scan specific directory"
+    echo "  TARGET_DIR=/app $0              # Scan via environment variable"
+    echo ""
+    echo "Notes:"
+    echo "  - Requires Docker to be installed and running"
+    echo "  - Automatically skips node_modules directories"
+    echo "  - Uses aquasec/trivy:latest Docker image"
+    exit 0
+}
+
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        -h|--help)
+            show_help
+            ;;
+    esac
+done
+
 # Initialize scan environment using scan directory approach
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -52,10 +98,12 @@ run_trivy_scan() {
                     image "$target" \
                     --format json --quiet 2>> "$SCAN_LOG" > "$output_file"
             else
-                # Filesystem scan - redirect stderr to log, keep JSON clean
+                # Filesystem scan - skip node_modules, redirect stderr to log, keep JSON clean
                 docker run --rm -v "${target}:/workspace:ro" \
                     aquasec/trivy:latest \
                     fs /workspace \
+                    --skip-dirs "node_modules" \
+                    --skip-dirs "**/node_modules" \
                     --format json --quiet 2>> "$SCAN_LOG" > "$output_file"
             fi
             

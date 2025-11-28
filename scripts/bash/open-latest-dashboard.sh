@@ -8,7 +8,44 @@ GREEN='\033[0;32m'
 CYAN='\033[0;36m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
+WHITE='\033[1;37m'
 NC='\033[0m'
+
+# Help function
+show_help() {
+    echo -e "${WHITE}Open Latest Security Dashboard${NC}"
+    echo ""
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Automatically finds and opens the most recent security scan dashboard"
+    echo "in your default web browser."
+    echo ""
+    echo "Options:"
+    echo "  -h, --help          Show this help message and exit"
+    echo ""
+    echo "Behavior:"
+    echo "  1. Finds the most recent scan in scans/ directory"
+    echo "  2. Checks if dashboard exists"
+    echo "  3. Regenerates dashboard if missing"
+    echo "  4. Opens in default browser"
+    echo ""
+    echo "Examples:"
+    echo "  $0                              # Open latest dashboard"
+    echo ""
+    echo "Notes:"
+    echo "  - Requires a completed scan in scans/ directory"
+    echo "  - Uses 'open' command (macOS) for browser"
+    exit 0
+}
+
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        -h|--help)
+            show_help
+            ;;
+    esac
+done
 
 # Get script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

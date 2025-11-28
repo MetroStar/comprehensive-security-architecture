@@ -4,6 +4,57 @@
 # Analyzes security scan results for CRITICAL, HIGH, MEDIUM, and LOW severity findings
 # Works with the new scan directory architecture: scans/{SCAN_ID}/{tool}/
 
+# Colors for help output
+WHITE='\033[1;37m'
+NC='\033[0m'
+
+# Help function
+show_help() {
+    echo -e "${WHITE}Security Findings Summary Generator${NC}"
+    echo ""
+    echo "Usage: $0 [OPTIONS] <SCAN_ID> <TARGET_DIR> <PROJECT_ROOT>"
+    echo ""
+    echo "Analyzes security scan results and generates a severity-based findings summary."
+    echo "Categorizes findings by CRITICAL, HIGH, MEDIUM, and LOW severity."
+    echo ""
+    echo "Arguments:"
+    echo "  SCAN_ID         The scan identifier (e.g., project_user_2025-01-01_12-00-00)"
+    echo "  TARGET_DIR      Original target directory that was scanned"
+    echo "  PROJECT_ROOT    Root directory of the security architecture project"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help      Show this help message and exit"
+    echo ""
+    echo "Output:"
+    echo "  Results saved to: scans/{SCAN_ID}/"
+    echo "  - security-findings-summary.json    JSON summary"
+    echo "  - security-findings-summary.html    HTML summary"
+    echo ""
+    echo "Summary Contents:"
+    echo "  - Total findings by severity"
+    echo "  - Findings breakdown by tool"
+    echo "  - Critical findings list with details"
+    echo "  - High priority findings list"
+    echo "  - Medium and low findings counts"
+    echo ""
+    echo "Examples:"
+    echo "  $0 myapp_user_2025-01-01 /path/to/app /path/to/security-arch"
+    echo ""
+    echo "Notes:"
+    echo "  - Usually called automatically by run-target-security-scan.sh"
+    echo "  - Can be run manually to regenerate summaries"
+    exit 0
+}
+
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        -h|--help)
+            show_help
+            ;;
+    esac
+done
+
 # Function to generate scan-specific findings summary from scan directory
 generate_scan_findings_summary() {
     local scan_id="$1"

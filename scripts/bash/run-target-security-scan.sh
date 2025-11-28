@@ -15,6 +15,68 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
+# Help function
+show_help() {
+    echo -e "${GREEN}Ten-Layer Security Scan Orchestrator${NC}"
+    echo ""
+    echo "Usage: $0 [OPTIONS] <TARGET_DIRECTORY> [SCAN_TYPE]"
+    echo ""
+    echo "Comprehensive security scanning orchestrator that runs all security tools"
+    echo "in a coordinated manner on any target directory."
+    echo ""
+    echo "Arguments:"
+    echo "  TARGET_DIRECTORY    Path to directory to scan (REQUIRED)"
+    echo "  SCAN_TYPE           Type of scan to run (default: full)"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help          Show this help message and exit"
+    echo ""
+    echo "Scan Types:"
+    echo "  quick       Fast scan - Trivy, TruffleHog, basic checks"
+    echo "  full        Complete scan - All 10 security layers (default)"
+    echo "  images      Container-focused - Image vulnerability scanning"
+    echo "  analysis    Code analysis - SonarQube, Checkov, quality checks"
+    echo ""
+    echo "Security Layers:"
+    echo "  Layer 1:  Container Security (Trivy)"
+    echo "  Layer 2:  Vulnerability Scanning (Grype)"
+    echo "  Layer 3:  Secret Detection (TruffleHog)"
+    echo "  Layer 4:  Malware Detection (ClamAV)"
+    echo "  Layer 5:  IaC Security (Checkov)"
+    echo "  Layer 6:  SBOM Generation (Syft)"
+    echo "  Layer 7:  Code Quality (SonarQube)"
+    echo "  Layer 8:  Helm Validation"
+    echo "  Layer 9:  EOL Detection (Xeol)"
+    echo "  Layer 10: Container Analysis (Anchore)"
+    echo ""
+    echo "Output:"
+    echo "  Results saved to: scans/{TARGET}_{USER}_{TIMESTAMP}/"
+    echo "  - Individual tool subdirectories"
+    echo "  - Consolidated reports and dashboard"
+    echo "  - Security findings summary"
+    echo ""
+    echo "Examples:"
+    echo "  $0 /path/to/project                    # Full scan"
+    echo "  $0 /path/to/project quick              # Quick scan"
+    echo "  $0 '/path/with spaces/project' full    # Path with spaces"
+    echo "  $0 ./my-app images                     # Image-focused scan"
+    echo ""
+    echo "Notes:"
+    echo "  - Requires Docker for most scanners"
+    echo "  - Creates timestamped scan directory"
+    echo "  - Generates interactive HTML dashboard"
+    exit 0
+}
+
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        -h|--help)
+            show_help
+            ;;
+    esac
+done
+
 # Configuration
 TARGET_DIR="$1"
 SCAN_TYPE="${2:-full}"

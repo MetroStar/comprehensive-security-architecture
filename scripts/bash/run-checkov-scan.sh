@@ -3,6 +3,64 @@
 # Checkov Infrastructure-as-Code Security Scan Script
 # Scans Helm charts and Kubernetes manifests for security best practices
 
+# Colors for help output
+WHITE='\033[1;37m'
+NC='\033[0m'
+
+# Help function
+show_help() {
+    echo -e "${WHITE}Checkov Infrastructure-as-Code Security Scanner${NC}"
+    echo ""
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Scans Helm charts, Kubernetes manifests, Terraform, CloudFormation,"
+    echo "and other IaC files for security misconfigurations and best practices."
+    echo ""
+    echo "Options:"
+    echo "  -h, --help          Show this help message and exit"
+    echo ""
+    echo "Environment Variables:"
+    echo "  TARGET_DIR              Directory to scan (default: current directory)"
+    echo "  SCAN_ID                 Override auto-generated scan ID"
+    echo "  SCAN_DIR                Override output directory for scan results"
+    echo "  AWS_ACCESS_KEY_ID       AWS credentials for cloud policy checks"
+    echo "  AWS_SECRET_ACCESS_KEY   AWS credentials for cloud policy checks"
+    echo "  AWS_DEFAULT_REGION      AWS region (default: us-gov-west-1)"
+    echo "  AWS_PROFILE             AWS profile name"
+    echo ""
+    echo "Output:"
+    echo "  Results are saved to: scans/{SCAN_ID}/checkov/"
+    echo "  - checkov-results.json          Full scan results"
+    echo "  - checkov-scan.log              Scan log file"
+    echo ""
+    echo "Supported Frameworks:"
+    echo "  - Kubernetes manifests (YAML)"
+    echo "  - Helm charts"
+    echo "  - Terraform (.tf files)"
+    echo "  - CloudFormation templates"
+    echo "  - Dockerfiles"
+    echo "  - Serverless framework"
+    echo ""
+    echo "Examples:"
+    echo "  $0                              # Scan current directory"
+    echo "  TARGET_DIR=/path/to/project $0  # Scan specific directory"
+    echo ""
+    echo "Notes:"
+    echo "  - Requires Docker to be installed and running"
+    echo "  - Automatically skips node_modules directories"
+    echo "  - Uses bridgecrew/checkov:latest Docker image"
+    exit 0
+}
+
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        -h|--help)
+            show_help
+            ;;
+    esac
+done
+
 # Configuration - Support target directory override
 TARGET_SCAN_DIR="${TARGET_DIR:-$(pwd)}"
 CHART_DIR="${TARGET_SCAN_DIR}/chart"
@@ -150,6 +208,7 @@ if command -v docker &> /dev/null; then
         -v "$OUTPUT_DIR:/output" \
         bridgecrew/checkov:latest \
         --directory /workspace \
+        --skip-path node_modules \
         --output json \
         --output-file /output/checkov-results.json \
         2>&1 | tee -a "$SCAN_LOG"

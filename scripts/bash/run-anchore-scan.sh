@@ -3,6 +3,61 @@
 # Anchore Security Analysis Script
 # Placeholder for future Anchore Engine/Enterprise integration
 
+# Colors for help output
+WHITE='\033[1;37m'
+NC='\033[0m'
+
+# Help function
+show_help() {
+    echo -e "${WHITE}Anchore Security Analysis (Placeholder)${NC}"
+    echo ""
+    echo "Usage: $0 [OPTIONS] [TARGET_DIRECTORY]"
+    echo ""
+    echo "Placeholder for future Anchore Engine/Enterprise integration."
+    echo "Currently generates placeholder reports for compatibility."
+    echo ""
+    echo "Arguments:"
+    echo "  TARGET_DIRECTORY    Path to directory to scan (default: current directory)"
+    echo ""
+    echo "Options:"
+    echo "  -h, --help          Show this help message and exit"
+    echo ""
+    echo "Environment Variables:"
+    echo "  TARGET_DIR          Alternative way to specify target directory"
+    echo "  SCAN_ID             Override auto-generated scan ID"
+    echo "  SCAN_DIR            Override output directory for scan results"
+    echo ""
+    echo "Future Capabilities (Planned):"
+    echo "  - Container image security analysis"
+    echo "  - Policy-based vulnerability assessment"
+    echo "  - Compliance reporting"
+    echo "  - Software composition analysis"
+    echo "  - Integration with Anchore Enterprise"
+    echo ""
+    echo "Output:"
+    echo "  Results are saved to: scans/{SCAN_ID}/anchore/"
+    echo "  - anchore-scan.log              Scan process log"
+    echo "  - anchore-results.json          Placeholder results"
+    echo ""
+    echo "Examples:"
+    echo "  $0                              # Create placeholder for current directory"
+    echo "  $0 /path/to/project             # Create placeholder for specific directory"
+    echo ""
+    echo "Notes:"
+    echo "  - This is a placeholder for future Anchore integration"
+    echo "  - Use Grype for current vulnerability scanning needs"
+    exit 0
+}
+
+# Parse arguments
+for arg in "$@"; do
+    case $arg in
+        -h|--help)
+            show_help
+            ;;
+    esac
+done
+
 # Initialize scan environment using scan directory approach
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
