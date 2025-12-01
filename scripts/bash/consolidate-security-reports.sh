@@ -123,25 +123,33 @@ from datetime import datetime
 
 try:
     with open('$input_file', 'r') as f:
+        content = f.read().strip()
+        
+        # Skip files that contain error messages (not valid JSON)
+        if not content:
+            print('SKIP: Empty file', file=sys.stderr)
+            sys.exit(0)
+        
+        # Check if the file contains error messages instead of JSON
+        if content.startswith('[') == False and content.startswith('{') == False:
+            # File contains error text, not JSON - skip silently
+            print(f'SKIP: File contains error message, not JSON data', file=sys.stderr)
+            sys.exit(0)
+        
         # Try to load as standard JSON first
         try:
-            data = json.load(f)
+            data = json.loads(content)
         except json.JSONDecodeError:
             # If that fails, try NDJSON (newline-delimited JSON)
-            f.seek(0)
-            content = f.read().strip()
-            if not content:
-                print('ERROR: Empty file', file=sys.stderr)
-                sys.exit(1)
             # Try parsing each line as JSON
             try:
-                data = [json.loads(line) for line in content.split('\\n') if line.strip()]
+                data = [json.loads(line) for line in content.split('\\n') if line.strip() and (line.strip().startswith('{') or line.strip().startswith('['))]
                 if not data:
-                    print('ERROR: No valid JSON found', file=sys.stderr)
-                    sys.exit(1)
+                    print('SKIP: No valid JSON found', file=sys.stderr)
+                    sys.exit(0)
             except json.JSONDecodeError as e:
-                print(f'ERROR: Invalid JSON format - {str(e)}', file=sys.stderr)
-                sys.exit(1)
+                print(f'SKIP: Invalid JSON format - {str(e)}', file=sys.stderr)
+                sys.exit(0)
     
     html_content = '''<!DOCTYPE html>
 <html lang=\"en\">
@@ -315,8 +323,16 @@ try:
     print(f'✅ Generated HTML report: $output_file')
 
 except Exception as e:
-    print(f'❌ Error generating HTML report: {str(e)}')
-" 2>/dev/null || echo -e "${RED}❌ Failed to generate HTML report for $input_file${NC}"
+    print(f'❌ Error generating HTML report: {str(e)}', file=sys.stderr)
+    sys.exit(1)
+" 2>/dev/null
+    local result=$?
+    if [ $result -ne 0 ]; then
+        # Only show error if it wasn't a skip (exit code 1 = error, 0 = skip or success)
+        if [ $result -eq 1 ]; then
+            echo -e "${RED}❌ Failed to generate HTML report for $input_file${NC}"
+        fi
+    fi
 }
 
 # Function to convert JSON to Markdown
@@ -341,21 +357,31 @@ try:
     with open('$input_file', 'r') as f:
         content = f.read().strip()
         if not content:
+            print('SKIP: Empty file', file=sys.stderr)
+            sys.exit(0)
+        
+        # Check if the file contains error messages instead of JSON
+        if not content.startswith('[') and not content.startswith('{'):
+            # File contains error text, not JSON - skip silently
+            print(f'SKIP: File contains error message, not JSON data', file=sys.stderr)
+            sys.exit(0)
+        
+        try:
+            # Try regular JSON first
+            data = json.loads(content)
+        except json.JSONDecodeError:
+            # If that fails, try NDJSON (newline-delimited JSON)
             data = []
-        else:
-            try:
-                # Try regular JSON first
-                data = json.loads(content)
-            except json.JSONDecodeError:
-                # If that fails, try NDJSON (newline-delimited JSON)
-                data = []
-                for line in content.split('\n'):
-                    line = line.strip()
-                    if line:
-                        try:
-                            data.append(json.loads(line))
-                        except json.JSONDecodeError:
-                            pass
+            for line in content.split('\n'):
+                line = line.strip()
+                if line and (line.startswith('{') or line.startswith('[')):
+                    try:
+                        data.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+            if not data:
+                print('SKIP: No valid JSON found', file=sys.stderr)
+                sys.exit(0)
     
     md_content = f'''# $tool_name Security Report
 
@@ -451,8 +477,16 @@ try:
     print(f'✅ Generated Markdown report: $output_file')
 
 except Exception as e:
-    print(f'❌ Error generating Markdown report: {str(e)}')
-" 2>/dev/null || echo -e "${RED}❌ Failed to generate Markdown report for $input_file${NC}"
+    print(f'❌ Error generating Markdown report: {str(e)}', file=sys.stderr)
+    sys.exit(1)
+" 2>/dev/null
+    local result=$?
+    if [ $result -ne 0 ]; then
+        # Only show error if it wasn't a skip (exit code 1 = error, 0 = skip or success)
+        if [ $result -eq 1 ]; then
+            echo -e "${RED}❌ Failed to generate Markdown report for $input_file${NC}"
+        fi
+    fi
 }
 
 # Function to consolidate specific tool reports

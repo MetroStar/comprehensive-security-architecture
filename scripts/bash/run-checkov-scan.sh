@@ -49,6 +49,8 @@ show_help() {
     echo "  - Requires Docker to be installed and running"
     echo "  - Automatically skips node_modules directories"
     echo "  - Uses bridgecrew/checkov:latest Docker image"
+    echo "  - Uses --skip-download to scan Helm templates without private registry access"
+    echo "  - Scans Helm templates directly as Kubernetes manifests if dependencies fail"
     exit 0
 }
 
@@ -198,6 +200,9 @@ if command -v docker &> /dev/null; then
     fi
     
     # Run Checkov scan with AWS credentials
+    # Using --skip-download to scan Helm templates even without access to private registries
+    # This allows scanning of raw templates without requiring helm dependency resolution
+    echo -e "${BLUE}🔍 Running Checkov scan (skipping external dependencies)...${NC}"
     docker run --rm \
         -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
         -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
@@ -209,13 +214,96 @@ if command -v docker &> /dev/null; then
         bridgecrew/checkov:latest \
         --directory /workspace \
         --skip-path node_modules \
+        --skip-download \
         --output json \
         --output-file /output/checkov-results.json \
         2>&1 | tee -a "$SCAN_LOG"
     
     SCAN_RESULT=$?
     
-    if [ -f "$RESULTS_FILE" ]; then
+    # If Helm chart exists but wasn't fully scanned, try scanning templates directly
+    if [[ -d "$CHART_DIR/templates" ]]; then
+        echo -e "${BLUE}🔍 Scanning Helm templates directly (Kubernetes framework)...${NC}"
+        docker run --rm \
+            -e AWS_ACCESS_KEY_ID="$AWS_ACCESS_KEY_ID" \
+            -e AWS_SECRET_ACCESS_KEY="$AWS_SECRET_ACCESS_KEY" \
+            -e AWS_DEFAULT_REGION="$AWS_DEFAULT_REGION" \
+            -e AWS_PROFILE="$AWS_PROFILE" \
+            $AWS_MOUNT_ARGS \
+            -v "$TARGET_SCAN_DIR:/workspace" \
+            -v "$OUTPUT_DIR:/output" \
+            bridgecrew/checkov:latest \
+            --directory /workspace/chart/templates \
+            --framework kubernetes \
+            --output json \
+            --output-file /output/checkov-kubernetes-results.json \
+            2>&1 | tee -a "$SCAN_LOG"
+        
+        # Also scan values.yaml and secrets.yaml for secrets detection
+        echo -e "${BLUE}🔍 Scanning Helm values for secrets...${NC}"
+        docker run --rm \
+            -v "$TARGET_SCAN_DIR:/workspace" \
+            -v "$OUTPUT_DIR:/output" \
+            bridgecrew/checkov:latest \
+            --directory /workspace/chart \
+            --framework secrets \
+            --skip-download \
+            --output json \
+            --output-file /output/checkov-secrets-results.json \
+            2>&1 | tee -a "$SCAN_LOG"
+        
+        echo "✅ Additional Helm template scans completed"
+    fi
+    
+    # Checkov creates a directory with results_json.json inside when using --output-file
+    # Handle this by finding the actual results file
+    CHECKOV_OUTPUT_DIR="$OUTPUT_DIR/checkov-results.json"
+    if [ -d "$CHECKOV_OUTPUT_DIR" ] && [ -f "$CHECKOV_OUTPUT_DIR/results_json.json" ]; then
+        # Move the actual results file to the correct location
+        mv "$CHECKOV_OUTPUT_DIR/results_json.json" "$RESULTS_FILE"
+        rm -rf "$CHECKOV_OUTPUT_DIR"
+        echo "✅ Infrastructure scan completed"
+        
+        # Handle kubernetes results directory
+        if [ -d "$OUTPUT_DIR/checkov-kubernetes-results.json" ] && [ -f "$OUTPUT_DIR/checkov-kubernetes-results.json/results_json.json" ]; then
+            mv "$OUTPUT_DIR/checkov-kubernetes-results.json/results_json.json" "$OUTPUT_DIR/checkov-kubernetes-results-temp.json"
+            rm -rf "$OUTPUT_DIR/checkov-kubernetes-results.json"
+            mv "$OUTPUT_DIR/checkov-kubernetes-results-temp.json" "$OUTPUT_DIR/checkov-kubernetes-results.json"
+        fi
+        
+        # Handle secrets results directory
+        if [ -d "$OUTPUT_DIR/checkov-secrets-results.json" ] && [ -f "$OUTPUT_DIR/checkov-secrets-results.json/results_json.json" ]; then
+            mv "$OUTPUT_DIR/checkov-secrets-results.json/results_json.json" "$OUTPUT_DIR/checkov-secrets-results-temp.json"
+            rm -rf "$OUTPUT_DIR/checkov-secrets-results.json"
+            mv "$OUTPUT_DIR/checkov-secrets-results-temp.json" "$OUTPUT_DIR/checkov-secrets-results.json"
+        fi
+        
+        # Merge additional scan results if they exist
+        if [ -f "$OUTPUT_DIR/checkov-kubernetes-results.json" ] || [ -f "$OUTPUT_DIR/checkov-secrets-results.json" ]; then
+            echo -e "${BLUE}📦 Merging scan results...${NC}"
+            
+            # Create a merged results file using jq if available
+            if command -v jq &> /dev/null; then
+                # Collect all result files
+                RESULT_FILES=("$RESULTS_FILE")
+                [ -f "$OUTPUT_DIR/checkov-kubernetes-results.json" ] && RESULT_FILES+=("$OUTPUT_DIR/checkov-kubernetes-results.json")
+                [ -f "$OUTPUT_DIR/checkov-secrets-results.json" ] && RESULT_FILES+=("$OUTPUT_DIR/checkov-secrets-results.json")
+                
+                # Merge all JSON arrays into one, removing duplicates by check_type
+                jq -s 'flatten | group_by(.check_type) | map(.[0])' "${RESULT_FILES[@]}" > "$OUTPUT_DIR/merged-results.json" 2>/dev/null
+                
+                if [ -f "$OUTPUT_DIR/merged-results.json" ] && [ -s "$OUTPUT_DIR/merged-results.json" ]; then
+                    mv "$OUTPUT_DIR/merged-results.json" "$RESULTS_FILE"
+                    echo "✅ Merged all scan results"
+                fi
+                
+                # Cleanup temporary files
+                rm -f "$OUTPUT_DIR/checkov-kubernetes-results.json" "$OUTPUT_DIR/checkov-secrets-results.json" 2>/dev/null
+            fi
+        fi
+    elif [ -f "$OUTPUT_DIR/checkov-results.json" ]; then
+        # Standard file output (older Checkov versions)
+        mv "$OUTPUT_DIR/checkov-results.json" "$RESULTS_FILE"
         echo "✅ Infrastructure scan completed"
     else
         echo "⚠️  No results file generated"
@@ -247,19 +335,43 @@ if [ -f "$RESULTS_FILE" ]; then
     
     # Try to extract basic counts using jq if available
     if command -v jq &> /dev/null; then
-        PASSED=$(jq -r '.summary.passed // 0' "$RESULTS_FILE" 2>/dev/null)
-        FAILED=$(jq -r '.summary.failed // 0' "$RESULTS_FILE" 2>/dev/null)
-        SKIPPED=$(jq -r '.summary.skipped // 0' "$RESULTS_FILE" 2>/dev/null)
+        # Handle both single object format and array format (multiple check_types)
+        IS_ARRAY=$(jq -r 'if type == "array" then "yes" else "no" end' "$RESULTS_FILE" 2>/dev/null)
         
-        echo "Passed checks: $PASSED"
-        echo "Failed checks: $FAILED"
-        echo "Skipped checks: $SKIPPED"
+        if [ "$IS_ARRAY" == "yes" ]; then
+            # Array format - sum across all check_types
+            PASSED=$(jq '[.[] | .summary.passed // 0] | add // 0' "$RESULTS_FILE" 2>/dev/null)
+            FAILED=$(jq '[.[] | .summary.failed // 0] | add // 0' "$RESULTS_FILE" 2>/dev/null)
+            SKIPPED=$(jq '[.[] | .summary.skipped // 0] | add // 0' "$RESULTS_FILE" 2>/dev/null)
+            
+            echo "Frameworks scanned:"
+            jq -r '.[] | "  - \(.check_type): \(.summary.passed // 0) passed, \(.summary.failed // 0) failed"' "$RESULTS_FILE" 2>/dev/null
+            echo
+        else
+            # Single object format
+            PASSED=$(jq -r '.summary.passed // 0' "$RESULTS_FILE" 2>/dev/null)
+            FAILED=$(jq -r '.summary.failed // 0' "$RESULTS_FILE" 2>/dev/null)
+            SKIPPED=$(jq -r '.summary.skipped // 0' "$RESULTS_FILE" 2>/dev/null)
+        fi
+        
+        echo "Total passed checks: $PASSED"
+        echo "Total failed checks: $FAILED"
+        echo "Total skipped checks: $SKIPPED"
         echo "Total checks: $((PASSED + FAILED + SKIPPED))"
         
         if [ "$FAILED" -gt 0 ]; then
             echo
             echo -e "${YELLOW}⚠️  $FAILED security issues found${NC}"
             echo "Review detailed results for specific recommendations"
+            
+            # Show top failed checks
+            echo
+            echo "Top failed checks:"
+            if [ "$IS_ARRAY" == "yes" ]; then
+                jq -r '.[] | .results.failed_checks[]? | "  ❌ \(.check_id): \(.check_name) (\(.file_path))"' "$RESULTS_FILE" 2>/dev/null | head -10
+            else
+                jq -r '.results.failed_checks[]? | "  ❌ \(.check_id): \(.check_name) (\(.file_path))"' "$RESULTS_FILE" 2>/dev/null | head -10
+            fi
         else
             echo
             echo -e "${GREEN}🎉 No security issues detected!${NC}"

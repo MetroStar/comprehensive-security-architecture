@@ -48,7 +48,7 @@ show_help() {
     echo ""
     echo "Notes:"
     echo "  - Requires Docker to be installed and running"
-    echo "  - Uses anchore/xeol:latest Docker image"
+    echo "  - Uses xeol/xeol:latest Docker image"
     echo "  - EOL dates sourced from endoflife.date"
     exit 0
 }
@@ -106,10 +106,10 @@ scan_target() {
     if [ ! -z "$target" ] && [ ! -z "$output_file" ]; then
         echo -e "${BLUE}🔍 Scanning ${scan_type}: ${target}${NC}"
         
-        # Run xeol scan with Docker
+        # Run xeol scan with Docker (image moved from anchore/xeol to xeol/xeol)
         docker run --rm -v "$PWD:/workspace" \
             -v "$OUTPUT_DIR:/output" \
-            anchore/xeol:latest \
+            xeol/xeol:latest \
             "$target" \
             --output json \
             --file "/output/$(basename "$output_file")" 2>&1 | tee -a "$SCAN_LOG"
@@ -211,7 +211,7 @@ echo "📋 View specific results:   cat \$OUTPUT_DIR/xeol-*-results.json | jq ."
 echo
 echo -e "${BLUE}🔗 Additional Resources:${NC}"
 echo "======================="
-echo "• Xeol Documentation: https://github.com/anchore/xeol"
+echo "• Xeol Documentation: https://github.com/xeol-io/xeol"
 echo "• End-of-Life Package Detection: https://endoflife.date/"
 echo "• NIST Software Security: https://csrc.nist.gov/projects/software-security"
 echo "• Package Lifecycle Management: https://owasp.org/www-project-dependency-check/"

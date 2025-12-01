@@ -499,8 +499,8 @@ if [ -d "$SBOM_DIR" ]; then
                     # Generate package type breakdown with clickable filter chips
                     SBOM_TYPE_BREAKDOWN=$(jq -r '[.artifacts[].type] | group_by(.) | map({type: .[0], count: length}) | sort_by(-.count) | .[:15] | map("<button class=\"sbom-filter-chip\" data-type=\"\(.type)\" onclick=\"filterSBOMByType(this, '"'"'\(.type)'"'"')\"><span class=\"type-name\">\(.type)</span><span class=\"type-count\">\(.count)</span></button>") | join("")' "$sbom_file" 2>/dev/null)
                     
-                    # Generate package list (first 100 packages) with data attributes for filtering/sorting
-                    SBOM_PACKAGE_LIST=$(jq -r '.artifacts[:100] | map("<div class=\"sbom-package-item\" data-name=\"\(.name | ascii_downcase)\" data-type=\"\(.type // "unknown")\" data-version=\"\(.version // "0.0.0")\" data-language=\"\(.language // "unknown")\" onclick=\"toggleFindingDetails(this)\">
+                    # Generate package list (first 500 packages) with data attributes for filtering/sorting
+                    SBOM_PACKAGE_LIST=$(jq -r '.artifacts | sort_by(.type) | .[:500] | map("<div class=\"sbom-package-item\" data-name=\"\(.name | ascii_downcase)\" data-type=\"\(.type // "unknown")\" data-version=\"\(.version // "0.0.0")\" data-language=\"\(.language // "unknown")\" onclick=\"toggleFindingDetails(this)\">
                         <div class=\"finding-header\">
                             <span class=\"badge badge-tool\">\(.type // "unknown")</span>
                             <span class=\"badge sbom-version-badge\">\(.version // "N/A")</span>
@@ -548,7 +548,7 @@ if [ -d "$SBOM_DIR" ]; then
                     <div class=\"sbom-package-list\" id=\"sbom-package-list\">
                         ${SBOM_PACKAGE_LIST}
                     </div>
-                    <p style=\"text-align: center; color: #718096; margin-top: 15px;\">Showing first 100 of ${SBOM_PACKAGES} total packages</p>"
+                    <p style=\"text-align: center; color: #718096; margin-top: 15px;\">Showing first 500 of ${SBOM_PACKAGES} total packages</p>"
                     break
                 fi
             fi

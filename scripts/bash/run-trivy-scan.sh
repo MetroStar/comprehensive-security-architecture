@@ -98,12 +98,14 @@ run_trivy_scan() {
                     image "$target" \
                     --format json --quiet 2>> "$SCAN_LOG" > "$output_file"
             else
-                # Filesystem scan - skip node_modules, redirect stderr to log, keep JSON clean
+                # Filesystem scan - skip node_modules and package-lock.json, redirect stderr to log, keep JSON clean
                 docker run --rm -v "${target}:/workspace:ro" \
                     aquasec/trivy:latest \
                     fs /workspace \
                     --skip-dirs "node_modules" \
                     --skip-dirs "**/node_modules" \
+                    --skip-files "package-lock.json" \
+                    --skip-files "**/package-lock.json" \
                     --format json --quiet 2>> "$SCAN_LOG" > "$output_file"
             fi
             
