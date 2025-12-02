@@ -255,42 +255,42 @@ generate_sbom() {
 # Generate different types of SBOMs based on target content
 echo -e "${PURPLE}🔍 Analyzing target for SBOM generation...${NC}"
 
-# Filesystem SBOM (always generated)
+# Detect project types for logging purposes
+DETECTED_TYPES=""
+if [[ -f "$REPO_PATH/package.json" ]]; then
+    DETECTED_TYPES="${DETECTED_TYPES}Node.js, "
+fi
+if [[ -f "$REPO_PATH/requirements.txt" ]] || [[ -f "$REPO_PATH/pyproject.toml" ]] || [[ -f "$REPO_PATH/setup.py" ]]; then
+    DETECTED_TYPES="${DETECTED_TYPES}Python, "
+fi
+if [[ -f "$REPO_PATH/go.mod" ]]; then
+    DETECTED_TYPES="${DETECTED_TYPES}Go, "
+fi
+if [[ -f "$REPO_PATH/pom.xml" ]] || [[ -f "$REPO_PATH/build.gradle" ]]; then
+    DETECTED_TYPES="${DETECTED_TYPES}Java, "
+fi
+if [[ -f "$REPO_PATH/Cargo.toml" ]]; then
+    DETECTED_TYPES="${DETECTED_TYPES}Rust, "
+fi
+if [[ -f "$REPO_PATH/Dockerfile" ]]; then
+    DETECTED_TYPES="${DETECTED_TYPES}Docker, "
+fi
+
+# Remove trailing comma and space
+DETECTED_TYPES="${DETECTED_TYPES%, }"
+if [[ -n "$DETECTED_TYPES" ]]; then
+    echo -e "${CYAN}📦 Detected Project Types: ${DETECTED_TYPES}${NC}"
+else
+    echo -e "${CYAN}📦 No specific project type detected - scanning filesystem${NC}"
+fi
+
+# Generate ONE comprehensive SBOM for the entire filesystem
+# Syft automatically detects all package types in a single scan
 generate_sbom "filesystem" "$REPO_PATH"
 
-# Language-specific SBOMs
-if [[ -f "$REPO_PATH/package.json" ]]; then
-    echo -e "${PURPLE}📦 Node.js project detected${NC}"
-    generate_sbom "nodejs" "$REPO_PATH"
-fi
-
-if [[ -f "$REPO_PATH/requirements.txt" ]] || [[ -f "$REPO_PATH/pyproject.toml" ]] || [[ -f "$REPO_PATH/setup.py" ]]; then
-    echo -e "${PURPLE}🐍 Python project detected${NC}"
-    generate_sbom "python" "$REPO_PATH"
-fi
-
-if [[ -f "$REPO_PATH/go.mod" ]]; then
-    echo -e "${PURPLE}🐹 Go project detected${NC}"
-    generate_sbom "golang" "$REPO_PATH"
-fi
-
-if [[ -f "$REPO_PATH/pom.xml" ]] || [[ -f "$REPO_PATH/build.gradle" ]]; then
-    echo -e "${PURPLE}☕ Java project detected${NC}"
-    generate_sbom "java" "$REPO_PATH"
-fi
-
-if [[ -f "$REPO_PATH/Cargo.toml" ]]; then
-    echo -e "${PURPLE}🦀 Rust project detected${NC}"
-    generate_sbom "rust" "$REPO_PATH"
-fi
-
-# Container image SBOMs (if Dockerfile exists)
-if [[ -f "$REPO_PATH/Dockerfile" ]]; then
-    echo -e "${PURPLE}🐳 Docker project detected${NC}"
-    # Note: This would need the image to be built first
-    echo -e "${YELLOW}ℹ️  Container image SBOM generation requires built images${NC}"
-    echo "Container image SBOM generation requires built images" >> "$SCAN_LOG"
-fi
+# Note: We no longer generate separate language-specific SBOMs
+# The filesystem SBOM captures ALL packages from ALL detected ecosystems
+# This prevents duplication in the dashboard and reports
 
 # Generate combined SBOM report
 echo -e "${CYAN}📋 Generating SBOM summary report...${NC}"

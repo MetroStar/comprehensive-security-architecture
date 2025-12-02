@@ -64,9 +64,15 @@ done
 
 # Initialize scan environment using scan directory approach
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_DIR="$(cd "$SCRIPT_DIR/../../configuration" && pwd)"
 
 # Source the scan directory template
 source "$SCRIPT_DIR/scan-directory-template.sh"
+
+# Source approved base images configuration
+if [ -f "$CONFIG_DIR/approved-base-images.conf" ]; then
+    source "$CONFIG_DIR/approved-base-images.conf"
+fi
 
 # Initialize scan environment for Xeol
 init_scan_environment "xeol"
@@ -119,18 +125,35 @@ scan_target() {
     if [ ! -z "$target" ] && [ ! -z "$output_file" ]; then
         echo -e "${BLUE}🔍 Scanning ${scan_type}: ${target}${NC}"
         
-        # Run xeol scan with Docker (image moved from anchore/xeol to xeol/xeol)
-        docker run --rm -v "$PWD:/workspace" \
-            -v "$OUTPUT_DIR:/output" \
-            xeol/xeol:latest \
-            "$target" \
-            --output json \
-            --file "/output/$(basename "$output_file")" 2>&1 | tee -a "$SCAN_LOG"
-            
-        if [ $? -eq 0 ]; then
-            echo -e "${GREEN}✅ Scan completed: $output_file${NC}"
+        local full_output_path="$OUTPUT_DIR/$output_file"
+        
+        # Run xeol scan with Docker
+        if [ "$scan_type" = "dir" ]; then
+            # For directory scans, mount the target directory
+            docker run --rm \
+                -v "$target:/workspace:ro" \
+                xeol/xeol:latest \
+                dir:/workspace \
+                -o json 2>>"$SCAN_LOG" > "$full_output_path"
         else
-            echo -e "${RED}❌ Scan failed for $target${NC}"
+            # For image scans, mount Docker socket to access host's Docker daemon
+            docker run --rm \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                xeol/xeol:latest \
+                "docker:$target" \
+                -o json 2>>"$SCAN_LOG" > "$full_output_path"
+        fi
+        
+        local exit_code=$?
+        if [ $exit_code -eq 0 ] && [ -f "$full_output_path" ] && [ -s "$full_output_path" ]; then
+            local eol_count=$(jq '.matches | length' "$full_output_path" 2>/dev/null || echo "0")
+            echo -e "${GREEN}   ✅ Scan completed: $eol_count EOL components found${NC}"
+            echo "${scan_type} scan ($target): $eol_count EOL components" >> "$SCAN_LOG"
+        else
+            echo -e "${RED}   ❌ Scan failed or no output for $target${NC}"
+            echo "${scan_type} scan ($target): FAILED" >> "$SCAN_LOG"
+            # Create empty result file
+            echo '{"matches": [], "source": {"type": "'"$scan_type"'", "target": "'"$target"'"}}' > "$full_output_path"
         fi
         echo
     fi
@@ -140,36 +163,59 @@ scan_target() {
 echo -e "${CYAN}⚰️  Step 1: End-of-Life Package Detection${NC}"
 echo "========================================"
 
-# Scan common base images for EOL packages
-BASE_IMAGES=(
-    "alpine:latest"
-    "ubuntu:22.04" 
-    "node:18-alpine"
-    "python:3.11-alpine"
-    "nginx:alpine"
-)
+# Scan common base images for EOL packages - use centralized config if available
+if [ ${#APPROVED_BASE_IMAGES[@]} -gt 0 ]; then
+    BASE_IMAGES=("${APPROVED_BASE_IMAGES[@]}")
+    echo -e "${CYAN}📋 Using ${#BASE_IMAGES[@]} approved Bitnami hardened base images${NC}"
+else
+    # Fallback to minimal Bitnami images
+    BASE_IMAGES=(
+        "bitnami/nginx:latest"
+        "bitnami/node:latest"
+        "bitnami/python:latest"
+        "bitnami/postgresql:latest"
+    )
+fi
 
+IMAGES_SCANNED=0
 for image in "${BASE_IMAGES[@]}"; do
     if command -v docker &> /dev/null; then
         echo -e "${BLUE}📦 Scanning base image: $image${NC}"
+        
+        # Check if image exists locally first
+        if docker image inspect "$image" &>/dev/null; then
+            echo "   ✅ Using cached image"
+        else
+            echo "   ⏬ Pulling image..."
+            if ! docker pull "$image" >> "$SCAN_LOG" 2>&1; then
+                echo "   ⚠️ Pull failed - skipping this image"
+                continue
+            fi
+        fi
+        
         image_name=$(echo $image | tr ':/' '-')
-        scan_target "image" "$image" "xeol-base-$image_name-results-$TIMESTAMP.json"
-        # Create current symlink
-        ln -sf "xeol-base-$image_name-results-$TIMESTAMP.json" "$OUTPUT_DIR/xeol-base-$image_name-results.json"
+        output_file="${SCAN_ID}_xeol-base-${image_name}-results.json"
+        scan_target "image" "$image" "$output_file"
+        
+        # Create current symlink for easy access
+        ln -sf "$output_file" "$OUTPUT_DIR/xeol-base-$image_name-results.json" 2>/dev/null
+        IMAGES_SCANNED=$((IMAGES_SCANNED + 1))
     fi
 done
 
-# Scan filesystem if target directory provided
-if [ ! -z "$1" ] && [ -d "$1" ]; then
-    echo -e "${BLUE}📁 Scanning filesystem: $1${NC}"
-    scan_target "dir" "$1" "xeol-filesystem-results-$TIMESTAMP.json"
+# Always scan the target filesystem
+if [ -d "$REPO_PATH" ]; then
+    echo -e "${BLUE}📁 Scanning filesystem for EOL components: $REPO_PATH${NC}"
+    output_file="${SCAN_ID}_xeol-filesystem-results.json"
+    scan_target "dir" "$REPO_PATH" "$output_file"
     # Create current symlink
-    ln -sf "xeol-filesystem-results-$TIMESTAMP.json" "$OUTPUT_DIR/xeol-filesystem-results.json"
+    ln -sf "$output_file" "$OUTPUT_DIR/xeol-filesystem-results.json" 2>/dev/null
 fi
 
 echo
 echo -e "${CYAN}📊 Xeol End-of-Life Detection Summary${NC}"
 echo "===================================="
+echo -e "🐳 Base images scanned: $IMAGES_SCANNED"
 
 RESULTS_COUNT=$(find "$OUTPUT_DIR" -name "xeol-*-results.json" 2>/dev/null | wc -l)
 echo -e "⚰️  End-of-Life Package Summary:"

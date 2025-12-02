@@ -372,10 +372,13 @@ case "$SCAN_TYPE" in
     "quick")
         print_section "Quick Security Scan (Core Tools Only) - Target: $(basename "$TARGET_DIR")"
         
-        # Core security tools - filesystem only
-        run_security_tool "TruffleHog Secret Detection" "$SCRIPT_DIR/run-trufflehog-scan.sh" "filesystem"
+        # SBOM first - foundation for vulnerability scanning
         run_security_tool "SBOM Generation" "$SCRIPT_DIR/run-sbom-scan.sh"
-        run_security_tool "Grype Vulnerability Scanning" "$SCRIPT_DIR/run-grype-scan.sh" "filesystem"
+        export SBOM_FILE="$SCAN_DIR/sbom/filesystem.json"
+        
+        # Core security tools
+        run_security_tool "TruffleHog Secret Detection" "$SCRIPT_DIR/run-trufflehog-scan.sh" "filesystem"
+        run_security_tool "Grype Vulnerability Scanning (SBOM)" "$SCRIPT_DIR/run-grype-scan.sh" "sbom"
         run_security_tool "Trivy Security Analysis" "$SCRIPT_DIR/run-trivy-scan.sh" "filesystem"
         run_security_tool "ClamAV Antivirus Scan" "$SCRIPT_DIR/run-clamav-scan.sh"
         ;;
@@ -407,43 +410,41 @@ case "$SCAN_TYPE" in
     "full")
         print_section "Complete Ten-Layer Security Architecture Scan - Target: $(basename "$TARGET_DIR")"
         
-        echo -e "${PURPLE}🔐 Layer 1: Secret Detection (Multi-Target)${NC}"
-        run_security_tool "TruffleHog Filesystem" "$SCRIPT_DIR/run-trufflehog-scan.sh" "filesystem"
-        run_security_tool "TruffleHog Container Images" "$SCRIPT_DIR/run-trufflehog-scan.sh" "images"
-        
-        echo -e "${PURPLE}📋 Layer 2: Software Bill of Materials (SBOM)${NC}"
+        # SBOM FIRST - Generate bill of materials for all other tools to use
+        echo -e "${PURPLE}📋 Layer 1: Software Bill of Materials (SBOM) - Foundation for all scans${NC}"
         run_security_tool "SBOM Generation" "$SCRIPT_DIR/run-sbom-scan.sh"
         
-        # Run SonarQube for all projects (not just Node.js)
+        # Export SBOM path for other tools to use
+        export SBOM_FILE="$SCAN_DIR/sbom/filesystem.json"
+        
+        echo -e "${PURPLE}🔐 Layer 2: Secret Detection${NC}"
+        run_security_tool "TruffleHog Filesystem" "$SCRIPT_DIR/run-trufflehog-scan.sh" "filesystem"
+        
         echo -e "${PURPLE}📊 Layer 3: Code Quality Analysis${NC}"
         run_security_tool "SonarQube Analysis" "$SCRIPT_DIR/run-sonar-analysis.sh"
         
         echo -e "${PURPLE}🦠 Layer 4: Malware Detection${NC}"
         run_security_tool "ClamAV Antivirus Scan" "$SCRIPT_DIR/run-clamav-scan.sh"
         
-        # Run Helm build for all projects (not just with Chart.yaml)
         echo -e "${PURPLE}🏗️  Layer 5: Helm Chart Building${NC}"
         run_security_tool "Helm Chart Build" "$SCRIPT_DIR/run-helm-build.sh"
         
         echo -e "${PURPLE}☸️  Layer 6: Infrastructure Security${NC}"
         run_security_tool "Checkov IaC Security" "$SCRIPT_DIR/run-checkov-scan.sh"
         
-        echo -e "${PURPLE}🛡️  Layer 7: Container Security (Multi-Target)${NC}"
+        echo -e "${PURPLE}🛡️  Layer 7: Container Security (Trivy)${NC}"
         run_security_tool "Trivy Filesystem" "$SCRIPT_DIR/run-trivy-scan.sh" "filesystem"
-        run_security_tool "Trivy Container Images" "$SCRIPT_DIR/run-trivy-scan.sh" "images"
         run_security_tool "Trivy Base Images" "$SCRIPT_DIR/run-trivy-scan.sh" "base"
-        run_security_tool "Trivy Kubernetes" "$SCRIPT_DIR/run-trivy-scan.sh" "kubernetes"
         
-        echo -e "${PURPLE}⚓ Layer 8: Anchore Security Analysis${NC}"
-        run_security_tool "Anchore Security Scan" "$SCRIPT_DIR/run-anchore-scan.sh"
+        echo -e "${PURPLE}🔍 Layer 8: Vulnerability Detection (Grype - SBOM-based)${NC}"
+        run_security_tool "Grype SBOM Scan" "$SCRIPT_DIR/run-grype-scan.sh" "sbom"
+        run_security_tool "Grype Base Images" "$SCRIPT_DIR/run-grype-scan.sh" "images"
         
         echo -e "${PURPLE}⚰️  Layer 9: End-of-Life Detection${NC}"
         run_security_tool "Xeol EOL Detection" "$SCRIPT_DIR/run-xeol-scan.sh"
         
-        echo -e "${PURPLE}🔍 Layer 10: Vulnerability Detection (Multi-Target)${NC}"
-        run_security_tool "Grype Filesystem" "$SCRIPT_DIR/run-grype-scan.sh" "filesystem"
-        run_security_tool "Grype Container Images" "$SCRIPT_DIR/run-grype-scan.sh" "images"
-        run_security_tool "Grype Base Images" "$SCRIPT_DIR/run-grype-scan.sh" "base"
+        echo -e "${PURPLE}⚓ Layer 10: Anchore Security Analysis${NC}"
+        run_security_tool "Anchore Security Scan" "$SCRIPT_DIR/run-anchore-scan.sh"
         ;;
         
     *)

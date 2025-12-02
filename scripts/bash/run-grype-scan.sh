@@ -64,9 +64,15 @@ done
 
 # Initialize scan environment using scan directory approach
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_DIR="$(cd "$SCRIPT_DIR/../../configuration" && pwd)"
 
 # Source the scan directory template
 source "$SCRIPT_DIR/scan-directory-template.sh"
+
+# Source approved base images configuration
+if [ -f "$CONFIG_DIR/approved-base-images.conf" ]; then
+    source "$CONFIG_DIR/approved-base-images.conf"
+fi
 
 # Initialize scan environment for Grype
 init_scan_environment "grype"
@@ -132,39 +138,48 @@ run_grype_scan() {
     local scan_type="$1"
     local target="$2"
     local output_file="$OUTPUT_DIR/${SCAN_ID}_grype-${scan_type}-results.json"
-    local sbom_file="$OUTPUT_DIR/${SCAN_ID}_sbom-${scan_type}.json"
     local current_file="$OUTPUT_DIR/grype-${scan_type}-results.json"
-    local current_sbom="$OUTPUT_DIR/sbom-${scan_type}.json"
     
     echo -e "${BLUE}🔍 Scanning ${scan_type}: ${target}${NC}"
     
     if command -v docker &> /dev/null; then
-        echo "Using Docker-based Grype..."
+        echo "   Using Docker-based Grype..."
         
-        # Generate SBOM first
-        docker run --rm -v "$target:/workspace" \
-            anchore/syft:latest \
-            /workspace -o json 2>&1 | tee -a "$SCAN_LOG" > "$sbom_file"
+        # Determine if this is an image scan or filesystem scan
+        if [[ "$scan_type" == "base-"* ]] || [[ "$target" == *":"* ]]; then
+            # Image scan - mount Docker socket to access host's Docker daemon
+            echo "   Scanning container image: $target"
+            docker run --rm \
+                -v /var/run/docker.sock:/var/run/docker.sock \
+                anchore/grype:latest \
+                "docker:$target" -o json 2>>"$SCAN_LOG" > "$output_file"
+        else
+            # Filesystem scan - mount the directory and scan
+            echo "   Scanning filesystem: $target"
+            docker run --rm -v "$target:/workspace:ro" \
+                anchore/grype:latest \
+                dir:/workspace -o json 2>>"$SCAN_LOG" > "$output_file"
+        fi
         
-        # Run vulnerability scan
-        docker run --rm -v "$sbom_file:/sbom.json" \
-            anchore/grype:latest \
-            sbom:/sbom.json -o json 2>&1 | tee -a "$SCAN_LOG" > "$output_file"
+        local exit_code=$?
+        if [ $exit_code -eq 0 ] && [ -f "$output_file" ] && [ -s "$output_file" ]; then
+            local count=$(jq '.matches | length' "$output_file" 2>/dev/null || echo "0")
+            echo -e "${GREEN}   ✅ ${scan_type} scan completed: $count vulnerabilities found${NC}"
+            echo "${scan_type} scan: $count vulnerabilities" >> "$SCAN_LOG"
+            
+            # Create/update current symlink for easy access
+            ln -sf "$(basename "$output_file")" "$current_file" 2>/dev/null
+        else
+            echo -e "${RED}   ❌ ${scan_type} scan failed or produced no output${NC}"
+            echo "${scan_type} scan: FAILED" >> "$SCAN_LOG"
+            # Create empty result file
+            echo '{"matches": [], "source": {"type": "directory", "target": "'"$target"'"}}' > "$output_file"
+        fi
     else
-        echo "⚠️  Docker not available - Grype scan skipped"
-        echo '{"matches": [], "ignoredMatches": []}' > "$output_file"
-        echo '{"artifacts": []}' > "$sbom_file"
+        echo -e "${RED}   ❌ Docker not available - Grype scan skipped${NC}"
+        echo '{"matches": [], "source": {"type": "directory", "target": "'"$target"'"}}' > "$output_file"
     fi
-    
-    if [ -f "$output_file" ]; then
-        local count=$(cat "$output_file" | jq '.matches | length' 2>/dev/null || echo "0")
-        echo "✅ ${scan_type} scan completed: $count vulnerabilities found"
-        echo "${scan_type} scan: $count vulnerabilities" >> "$SCAN_LOG"
-        
-        # Create/update current symlinks for easy access
-        ln -sf "$(basename "$output_file")" "$current_file"
-        ln -sf "$(basename "$sbom_file")" "$current_sbom"
-    fi
+    echo
 }
 
 # Determine scan type based on first argument
@@ -173,25 +188,86 @@ SCAN_TYPE="${1:-all}"
 echo -e "${CYAN}🔍 Step 1: Vulnerability Detection${NC}"
 echo "=================================="
 
-case "$SCAN_TYPE" in
-    "filesystem"|"all")
+# Run SBOM-based scan (preferred method - uses pre-generated SBOM)
+if [[ "$SCAN_TYPE" == "sbom" ]] || [[ "$SCAN_TYPE" == "all" ]]; then
+    # Look for SBOM file from environment or standard location
+    # The SBOM scan generates filesystem.json as the comprehensive SBOM
+    SBOM_FILE="${SBOM_FILE:-$SCAN_DIR/sbom/filesystem.json}"
+    
+    if [ -f "$SBOM_FILE" ]; then
+        echo -e "${GREEN}📋 Using SBOM-based vulnerability scan (recommended)${NC}"
+        echo "   SBOM file: $SBOM_FILE"
+        
+        output_file="$OUTPUT_DIR/${SCAN_ID}_grype-sbom-results.json"
+        current_file="$OUTPUT_DIR/grype-sbom-results.json"
+        
+        if command -v docker &> /dev/null; then
+            echo -e "${BLUE}🔍 Scanning SBOM for vulnerabilities...${NC}"
+            
+            # Mount the SBOM file and scan it
+            docker run --rm \
+                -v "$SBOM_FILE:/sbom.json:ro" \
+                anchore/grype:latest \
+                sbom:/sbom.json -o json 2>>"$SCAN_LOG" > "$output_file"
+            
+            local exit_code=$?
+            if [ $exit_code -eq 0 ] && [ -f "$output_file" ] && [ -s "$output_file" ]; then
+                local count=$(jq '.matches | length' "$output_file" 2>/dev/null || echo "0")
+                echo -e "${GREEN}   ✅ SBOM scan completed: $count vulnerabilities found${NC}"
+                echo "SBOM scan: $count vulnerabilities" >> "$SCAN_LOG"
+                ln -sf "$(basename "$output_file")" "$current_file" 2>/dev/null
+            else
+                echo -e "${RED}   ❌ SBOM scan failed${NC}"
+                echo '{"matches": [], "source": {"type": "sbom", "target": "'"$SBOM_FILE"'"}}' > "$output_file"
+            fi
+        fi
+    else
+        echo -e "${YELLOW}⚠️ SBOM file not found: $SBOM_FILE${NC}"
+        echo "   Falling back to filesystem scan..."
+        # Fall back to filesystem scan if no SBOM
         if [ -d "$REPO_PATH" ]; then
             run_grype_scan "filesystem" "$REPO_PATH"
-        else
-            echo "⚠️  Target directory not found: $REPO_PATH"
         fi
-        ;;
-    "images"|"all")
-        # Scan common base images
-        for image in "nginx:alpine" "node:18-alpine" "python:3.11-alpine" "ubuntu:22.04" "alpine:latest"; do
-            echo -e "${BLUE}📦 Scanning base image: $image${NC}"
-            if command -v docker &> /dev/null; then
-                docker pull "$image" >> "$SCAN_LOG" 2>&1
-                run_grype_scan "base-$(echo $image | tr ':' '-')" "$image"
+    fi
+fi
+
+# Run filesystem scan only if explicitly requested (not for "all" anymore - SBOM is preferred)
+if [[ "$SCAN_TYPE" == "filesystem" ]]; then
+    if [ -d "$REPO_PATH" ]; then
+        run_grype_scan "filesystem" "$REPO_PATH"
+    else
+        echo "⚠️  Target directory not found: $REPO_PATH"
+    fi
+fi
+
+# Run image scans for "images" or "all"
+if [[ "$SCAN_TYPE" == "images" ]] || [[ "$SCAN_TYPE" == "all" ]]; then
+    # Use centralized approved Bitnami images if available
+    if [ ${#APPROVED_BASE_IMAGES[@]} -gt 0 ]; then
+        IMAGES_TO_SCAN=("${APPROVED_BASE_IMAGES[@]}")
+        echo -e "${CYAN}📋 Using ${#IMAGES_TO_SCAN[@]} approved Bitnami hardened base images${NC}"
+    else
+        # Fallback to minimal Bitnami images
+        IMAGES_TO_SCAN=("bitnami/nginx:latest" "bitnami/node:latest" "bitnami/python:latest" "bitnami/postgresql:latest")
+    fi
+    
+    for image in "${IMAGES_TO_SCAN[@]}"; do
+        echo -e "${BLUE}📦 Scanning base image: $image${NC}"
+        if command -v docker &> /dev/null; then
+            # Check if image exists locally first
+            if docker image inspect "$image" &>/dev/null; then
+                echo "   ✅ Using cached image"
+            else
+                echo "   ⏬ Pulling image..."
+                if ! docker pull "$image" >> "$SCAN_LOG" 2>&1; then
+                    echo "   ⚠️ Pull failed - skipping this image"
+                    continue
+                fi
             fi
-        done
-        ;;
-esac
+            run_grype_scan "base-$(echo $image | tr ':/' '-')" "$image"
+        fi
+    done
+fi
 
 # Count results
 RESULTS_COUNT=$(find "$OUTPUT_DIR" -name "grype-*-results.json" -type f | wc -l | tr -d ' ')

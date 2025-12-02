@@ -62,9 +62,16 @@ done
 
 # Initialize scan environment using scan directory approach
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_DIR="$(cd "$SCRIPT_DIR/../../configuration" && pwd)"
 
 # Source the scan directory template
 source "$SCRIPT_DIR/scan-directory-template.sh"
+
+# Source approved base images configuration
+if [ -f "$CONFIG_DIR/approved-base-images.conf" ]; then
+    source "$CONFIG_DIR/approved-base-images.conf"
+    echo "✅ Loaded approved Bitnami base images configuration"
+fi
 
 # Initialize scan environment for Trivy
 init_scan_environment "trivy"
@@ -102,8 +109,11 @@ run_trivy_scan() {
         if command -v docker &> /dev/null; then
             # Determine if this is an image scan or filesystem scan
             if [[ "$scan_type" == "base-"* ]] || [[ "$target" == *":"* ]]; then
-                # Image scan - redirect stderr to log, keep JSON clean
+                # Image scan - mount Docker socket to access host images
+                # Try to use locally cached image first, fall back to remote scan
+                echo "   Scanning container image: $target"
                 docker run --rm \
+                    -v /var/run/docker.sock:/var/run/docker.sock \
                     aquasec/trivy:latest \
                     image "$target" \
                     --format json --quiet 2>> "$SCAN_LOG" > "$output_file"
@@ -119,12 +129,15 @@ run_trivy_scan() {
                     --format json --quiet 2>> "$SCAN_LOG" > "$output_file"
             fi
             
-            if [ $? -eq 0 ]; then
+            local exit_code=$?
+            if [ $exit_code -eq 0 ] && [ -f "$output_file" ] && [ -s "$output_file" ]; then
                 echo -e "${GREEN}✅ Scan completed: $output_file${NC}"
                 # Create/update current symlink for easy access
-                ln -sf "$(basename "$output_file")" "$current_file"
+                ln -sf "$(basename "$output_file")" "$current_file" 2>/dev/null
             else
                 echo -e "${RED}❌ Scan failed for $target${NC}"
+                # Create empty result to prevent dashboard errors
+                echo '{"Results": []}' > "$output_file"
             fi
         else
             echo -e "${RED}❌ Docker not available - Trivy scan skipped${NC}"
@@ -138,18 +151,36 @@ run_trivy_scan() {
 echo -e "${CYAN}🛡️  Step 1: Container Security Scan${NC}"
 echo "=================================="
 
-# Scan common base images
-BASE_IMAGES=(
-    "alpine:latest"
-    "ubuntu:22.04" 
-    "node:18-alpine"
-    "python:3.11-alpine"
-    "nginx:alpine"
-)
+# Scan common base images - use centralized approved images if available
+if [ ${#APPROVED_BASE_IMAGES[@]} -gt 0 ]; then
+    BASE_IMAGES=("${APPROVED_BASE_IMAGES[@]}")
+    echo "📋 Using ${#BASE_IMAGES[@]} approved Bitnami hardened base images"
+else
+    # Fallback to hardcoded Bitnami images
+    # Fallback to minimal Bitnami images
+    BASE_IMAGES=(
+        "bitnami/nginx:latest"
+        "bitnami/node:latest"
+        "bitnami/python:latest"
+        "bitnami/postgresql:latest"
+    )
+fi
 
 for image in "${BASE_IMAGES[@]}"; do
     if command -v docker &> /dev/null; then
         echo -e "${BLUE}📦 Scanning base image: $image${NC}"
+        
+        # Check if image exists locally first
+        if docker image inspect "$image" &>/dev/null; then
+            echo "   ✅ Using cached image"
+        else
+            echo "   ⏬ Pulling image..."
+            if ! docker pull "$image" >> "$SCAN_LOG" 2>&1; then
+                echo "   ⚠️ Pull failed - skipping this image"
+                continue
+            fi
+        fi
+        
         run_trivy_scan "base-$(echo $image | tr ':/' '-')" "$image"
     fi
 done

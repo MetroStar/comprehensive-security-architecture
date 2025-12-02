@@ -597,12 +597,21 @@ CHECKOV_PASSED=0
 CHECKOV_FAILED=0
 CHECKOV_SKIPPED=0
 CHECKOV_FILES_SCANNED=0
+CHECKOV_CHECK_TYPES=""
 if [ -d "$CHECKOV_DIR" ]; then
     for checkov_file in "$CHECKOV_DIR"/*.json; do
-        if [ -f "$checkov_file" ]; then
-            passed=$(jq '.results.passed_checks | length' "$checkov_file" 2>/dev/null || echo "0")
-            failed=$(jq '.results.failed_checks | length' "$checkov_file" 2>/dev/null || echo "0")
-            skipped=$(jq '.results.skipped_checks | length' "$checkov_file" 2>/dev/null || echo "0")
+        # Skip symlinks to avoid duplicate processing
+        if [ -f "$checkov_file" ] && [ ! -L "$checkov_file" ] && [[ "$(basename "$checkov_file")" != *"summary"* ]]; then
+            # Checkov output is an array - iterate through all check types
+            # First element [0] is summary, subsequent elements contain results by check type
+            
+            # Sum up all passed/failed/skipped from all check types
+            passed=$(jq '[.[] | select(.results?) | .results.passed_checks | length] | add // 0' "$checkov_file" 2>/dev/null || echo "0")
+            failed=$(jq '[.[] | select(.results?) | .results.failed_checks | length] | add // 0' "$checkov_file" 2>/dev/null || echo "0")
+            skipped=$(jq '[.[] | select(.results?) | .results.skipped_checks | length] | add // 0' "$checkov_file" 2>/dev/null || echo "0")
+            
+            # Get check types scanned
+            check_types=$(jq -r '[.[] | select(.check_type?) | .check_type] | unique | join(", ")' "$checkov_file" 2>/dev/null || echo "")
             
             [[ "$passed" =~ ^[0-9]+$ ]] || passed=0
             [[ "$failed" =~ ^[0-9]+$ ]] || failed=0
@@ -611,12 +620,71 @@ if [ -d "$CHECKOV_DIR" ]; then
             CHECKOV_PASSED=$((CHECKOV_PASSED + passed))
             CHECKOV_FAILED=$((CHECKOV_FAILED + failed))
             CHECKOV_SKIPPED=$((CHECKOV_SKIPPED + skipped))
+            CHECKOV_CHECK_TYPES="$check_types"
         fi
     done
 fi
 CHECKOV_CRITICAL=$CHECKOV_FAILED
 CHECKOV_HIGH=0
-CHECKOV_FINDINGS="<p class=\"no-findings\">Passed: $CHECKOV_PASSED | Failed: $CHECKOV_FAILED | Skipped: $CHECKOV_SKIPPED</p>"
+CHECKOV_TOTAL=$((CHECKOV_PASSED + CHECKOV_FAILED + CHECKOV_SKIPPED))
+
+# Build Checkov findings display
+if [ "$CHECKOV_TOTAL" -gt 0 ]; then
+    CHECKOV_FINDINGS="<div class=\"stats-grid-small\">
+        <div class=\"stat-item\"><strong>✅ Passed:</strong> ${CHECKOV_PASSED}</div>
+        <div class=\"stat-item\"><strong>❌ Failed:</strong> ${CHECKOV_FAILED}</div>
+        <div class=\"stat-item\"><strong>⏭️ Skipped:</strong> ${CHECKOV_SKIPPED}</div>
+        <div class=\"stat-item\"><strong>📊 Total Checks:</strong> ${CHECKOV_TOTAL}</div>
+    </div>"
+    if [ -n "$CHECKOV_CHECK_TYPES" ]; then
+        CHECKOV_FINDINGS="${CHECKOV_FINDINGS}<p style=\"margin-top: 10px; color: #718096;\">Check types: ${CHECKOV_CHECK_TYPES}</p>"
+    fi
+    
+    # Add failed checks details if any failures exist
+    if [ "$CHECKOV_FAILED" -gt 0 ]; then
+        CHECKOV_FINDINGS="${CHECKOV_FINDINGS}<div class=\"findings-section\" style=\"margin-top: 15px;\">
+            <h4 style=\"color: #e53e3e; margin-bottom: 10px;\">❌ Failed Checks (${CHECKOV_FAILED})</h4>
+            <table class=\"findings-table\">
+                <thead>
+                    <tr>
+                        <th>Check ID</th>
+                        <th>Check Name</th>
+                        <th>File</th>
+                        <th>Line</th>
+                    </tr>
+                </thead>
+                <tbody>"
+        
+        # Extract failed checks from all Checkov JSON files
+        for checkov_file in "$CHECKOV_DIR"/*.json; do
+            # Skip symlinks to avoid duplicate processing
+            if [ -f "$checkov_file" ] && [ ! -L "$checkov_file" ] && [[ "$(basename "$checkov_file")" != *"summary"* ]]; then
+                # Get failed checks as TSV for easy parsing
+                while IFS=$'\t' read -r check_id check_name file_path line_start; do
+                    if [ -n "$check_id" ]; then
+                        # Escape HTML entities
+                        check_name_escaped=$(echo "$check_name" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
+                        file_display=$(basename "$file_path" 2>/dev/null || echo "$file_path")
+                        CHECKOV_FINDINGS="${CHECKOV_FINDINGS}
+                    <tr class=\"severity-critical\">
+                        <td><code>${check_id}</code></td>
+                        <td>${check_name_escaped}</td>
+                        <td><code>${file_display}</code></td>
+                        <td>${line_start}</td>
+                    </tr>"
+                    fi
+                done < <(jq -r '[.[] | select(.results?) | .results.failed_checks[]] | .[] | [.check_id, .check_name, .file_path, (.file_line_range[0] // "N/A" | tostring)] | @tsv' "$checkov_file" 2>/dev/null)
+            fi
+        done
+        
+        CHECKOV_FINDINGS="${CHECKOV_FINDINGS}
+                </tbody>
+            </table>
+        </div>"
+    fi
+else
+    CHECKOV_FINDINGS="<p class=\"no-findings\">No Checkov results available</p>"
+fi
 
 # ---- SonarQube Statistics ----
 SONAR_DIR="${LATEST_SCAN}/sonar"
@@ -654,11 +722,90 @@ HELM_CRITICAL=0
 HELM_HIGH=0
 HELM_FINDINGS="<p class=\"no-findings\">Helm charts scanned: $HELM_CHARTS_SCANNED</p>"
 
+# ---- Xeol (EOL Detection) Statistics ----
+XEOL_DIR="${LATEST_SCAN}/xeol"
+XEOL_CRITICAL=0
+XEOL_HIGH=0
+XEOL_MEDIUM=0
+XEOL_LOW=0
+XEOL_TOTAL_EOL=0
+XEOL_IMAGES_SCANNED=0
+XEOL_FINDINGS=""
+if [ -d "$XEOL_DIR" ]; then
+    # Count actual JSON files (not symlinks)
+    XEOL_IMAGES_SCANNED=$(find "$XEOL_DIR" -name "*xeol-*.json" -type f 2>/dev/null | wc -l | tr -d ' \n' || echo "0")
+    [[ "$XEOL_IMAGES_SCANNED" =~ ^[0-9]+$ ]] || XEOL_IMAGES_SCANNED=0
+    
+    for xeol_file in "$XEOL_DIR"/*xeol-*.json; do
+        if [ -f "$xeol_file" ] && [ ! -L "$xeol_file" ]; then
+            eol_count=$(jq '.matches | length' "$xeol_file" 2>/dev/null || echo "0")
+            [[ "$eol_count" =~ ^[0-9]+$ ]] || eol_count=0
+            XEOL_TOTAL_EOL=$((XEOL_TOTAL_EOL + eol_count))
+            
+            # Count by severity (Xeol uses "Cycle" info, treat EOL as High)
+            if [ "$eol_count" -gt 0 ]; then
+                XEOL_HIGH=$((XEOL_HIGH + eol_count))
+            fi
+        fi
+    done
+    
+    if [ "$XEOL_TOTAL_EOL" -gt 0 ]; then
+        XEOL_FINDINGS="<p class=\"finding-item severity-high\">⚠️ ${XEOL_TOTAL_EOL} end-of-life components detected across ${XEOL_IMAGES_SCANNED} scans</p>"
+    else
+        XEOL_FINDINGS="<p class=\"no-findings\">✅ No end-of-life components detected (${XEOL_IMAGES_SCANNED} targets scanned)</p>"
+    fi
+else
+    XEOL_FINDINGS="<p class=\"no-findings\">No Xeol data available</p>"
+fi
+
+# ---- Anchore Statistics ----
+ANCHORE_DIR="${LATEST_SCAN}/anchore"
+ANCHORE_CRITICAL=0
+ANCHORE_HIGH=0
+ANCHORE_MEDIUM=0
+ANCHORE_LOW=0
+ANCHORE_TOTAL_VULNS=0
+ANCHORE_STATUS="N/A"
+ANCHORE_FINDINGS=""
+if [ -d "$ANCHORE_DIR" ]; then
+    ANCHORE_FILE=$(find "$ANCHORE_DIR" -name "anchore-results.json" -o -name "*_anchore-results.json" 2>/dev/null | head -n 1)
+    if [ -f "$ANCHORE_FILE" ]; then
+        ANCHORE_STATUS=$(jq -r '.status // "unknown"' "$ANCHORE_FILE" 2>/dev/null || echo "unknown")
+        
+        if [ "$ANCHORE_STATUS" = "placeholder" ]; then
+            ANCHORE_FINDINGS="<p class=\"no-findings\">ℹ️ Anchore integration planned for future release</p>"
+        else
+            # Parse actual Anchore results
+            ANCHORE_CRITICAL=$(jq '[.results.vulnerabilities[]? | select(.severity=="Critical")] | length' "$ANCHORE_FILE" 2>/dev/null || echo "0")
+            ANCHORE_HIGH=$(jq '[.results.vulnerabilities[]? | select(.severity=="High")] | length' "$ANCHORE_FILE" 2>/dev/null || echo "0")
+            ANCHORE_MEDIUM=$(jq '[.results.vulnerabilities[]? | select(.severity=="Medium")] | length' "$ANCHORE_FILE" 2>/dev/null || echo "0")
+            ANCHORE_LOW=$(jq '[.results.vulnerabilities[]? | select(.severity=="Low")] | length' "$ANCHORE_FILE" 2>/dev/null || echo "0")
+            
+            [[ "$ANCHORE_CRITICAL" =~ ^[0-9]+$ ]] || ANCHORE_CRITICAL=0
+            [[ "$ANCHORE_HIGH" =~ ^[0-9]+$ ]] || ANCHORE_HIGH=0
+            [[ "$ANCHORE_MEDIUM" =~ ^[0-9]+$ ]] || ANCHORE_MEDIUM=0
+            [[ "$ANCHORE_LOW" =~ ^[0-9]+$ ]] || ANCHORE_LOW=0
+            
+            ANCHORE_TOTAL_VULNS=$((ANCHORE_CRITICAL + ANCHORE_HIGH + ANCHORE_MEDIUM + ANCHORE_LOW))
+            
+            if [ "$ANCHORE_TOTAL_VULNS" -gt 0 ]; then
+                ANCHORE_FINDINGS="<p class=\"no-findings\">🔍 ${ANCHORE_TOTAL_VULNS} vulnerabilities detected</p>"
+            else
+                ANCHORE_FINDINGS="<p class=\"no-findings\">✅ No vulnerabilities detected by Anchore</p>"
+            fi
+        fi
+    else
+        ANCHORE_FINDINGS="<p class=\"no-findings\">No Anchore results file found</p>"
+    fi
+else
+    ANCHORE_FINDINGS="<p class=\"no-findings\">No Anchore data available</p>"
+fi
+
 # Calculate totals
-TOTAL_CRITICAL=$((TH_CRITICAL + CLAMAV_CRITICAL + TRIVY_CRITICAL + GRYPE_CRITICAL + SONAR_CRITICAL + CHECKOV_CRITICAL + HELM_CRITICAL))
-TOTAL_HIGH=$((TH_HIGH + TRIVY_HIGH + GRYPE_HIGH + SONAR_HIGH + CHECKOV_HIGH + HELM_HIGH))
-TOTAL_MEDIUM=$((TRIVY_MEDIUM + GRYPE_MEDIUM))
-TOTAL_LOW=$((TRIVY_LOW + GRYPE_LOW))
+TOTAL_CRITICAL=$((TH_CRITICAL + CLAMAV_CRITICAL + TRIVY_CRITICAL + GRYPE_CRITICAL + SONAR_CRITICAL + CHECKOV_CRITICAL + HELM_CRITICAL + XEOL_CRITICAL + ANCHORE_CRITICAL))
+TOTAL_HIGH=$((TH_HIGH + TRIVY_HIGH + GRYPE_HIGH + SONAR_HIGH + CHECKOV_HIGH + HELM_HIGH + XEOL_HIGH + ANCHORE_HIGH))
+TOTAL_MEDIUM=$((TRIVY_MEDIUM + GRYPE_MEDIUM + XEOL_MEDIUM + ANCHORE_MEDIUM))
+TOTAL_LOW=$((TRIVY_LOW + GRYPE_LOW + XEOL_LOW + ANCHORE_LOW))
 TOTAL_FINDINGS=$((TOTAL_CRITICAL + TOTAL_HIGH + TOTAL_MEDIUM + TOTAL_LOW))
 
 # Create output directory
@@ -2016,6 +2163,97 @@ cat >> "$OUTPUT_HTML" << EOF
                             </div>
                         </div>
                         ${SBOM_FINDINGS}
+                    </div>
+                </div>
+            </div>
+EOF
+
+# ---- Xeol (EOL Detection) Section ----
+cat >> "$OUTPUT_HTML" << EOF
+            <!-- Xeol (EOL Detection) -->
+            <div class="tool-card">
+                <div class="tool-header" onclick="toggleTool('xeol')">
+                    <div class="tool-title">
+                        <span class="tool-icon">📅</span>
+                        <div>
+                            <div>Xeol</div>
+                            <div style="font-size: 0.6em; font-weight: 400; color: #718096;">End-of-Life Detection</div>
+                        </div>
+                    </div>
+                    <div class="tool-stats">
+EOF
+
+# Add Xeol stats
+if [ "$XEOL_HIGH" -gt 0 ]; then
+    echo "                        <span class=\"tool-stat-badge badge-high\">⚠️ ${XEOL_HIGH} EOL</span>" >> "$OUTPUT_HTML"
+else
+    echo "                        <span class=\"tool-stat-badge badge-clean\">✅ Clean</span>" >> "$OUTPUT_HTML"
+fi
+
+cat >> "$OUTPUT_HTML" << EOF
+                        <span class="expand-icon">▼</span>
+                    </div>
+                </div>
+                <div class="tool-content" id="xeol-content">
+                    <div class="tool-findings">
+                        <div class="stats-detail-box">
+                            <h4>📊 EOL Detection Statistics</h4>
+                            <div class="stats-grid-small">
+                                <div class="stat-item"><strong>Images Scanned:</strong> ${XEOL_IMAGES_SCANNED}</div>
+                                <div class="stat-item"><strong>EOL Components:</strong> ${XEOL_TOTAL_EOL}</div>
+                            </div>
+                        </div>
+                        ${XEOL_FINDINGS}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Anchore -->
+            <div class="tool-card">
+                <div class="tool-header" onclick="toggleTool('anchore')">
+                    <div class="tool-title">
+                        <span class="tool-icon">⚓</span>
+                        <div>
+                            <div>Anchore</div>
+                            <div style="font-size: 0.6em; font-weight: 400; color: #718096;">Enterprise Security Scanner</div>
+                        </div>
+                    </div>
+                    <div class="tool-stats">
+EOF
+
+# Add Anchore stats
+if [ "$ANCHORE_CRITICAL" -gt 0 ]; then
+    echo "                        <span class=\"tool-stat-badge badge-critical\">❗ ${ANCHORE_CRITICAL}</span>" >> "$OUTPUT_HTML"
+fi
+if [ "$ANCHORE_HIGH" -gt 0 ]; then
+    echo "                        <span class=\"tool-stat-badge badge-high\">⚠️ ${ANCHORE_HIGH}</span>" >> "$OUTPUT_HTML"
+fi
+if [ "$ANCHORE_CRITICAL" -eq 0 ] && [ "$ANCHORE_HIGH" -eq 0 ]; then
+    if [ "$ANCHORE_STATUS" = "placeholder" ]; then
+        echo "                        <span class=\"tool-stat-badge\" style=\"background: #e0f2fe; color: #0369a1;\">ℹ️ Planned</span>" >> "$OUTPUT_HTML"
+    else
+        echo "                        <span class=\"tool-stat-badge badge-clean\">✅ Clean</span>" >> "$OUTPUT_HTML"
+    fi
+fi
+
+cat >> "$OUTPUT_HTML" << EOF
+                        <span class="expand-icon">▼</span>
+                    </div>
+                </div>
+                <div class="tool-content" id="anchore-content">
+                    <div class="tool-findings">
+                        <div class="stats-detail-box">
+                            <h4>📊 Anchore Statistics</h4>
+                            <div class="stats-grid-small">
+                                <div class="stat-item"><strong>Status:</strong> ${ANCHORE_STATUS}</div>
+                                <div class="stat-item"><strong>Total Vulnerabilities:</strong> ${ANCHORE_TOTAL_VULNS}</div>
+                                <div class="stat-item"><strong>Critical:</strong> ${ANCHORE_CRITICAL}</div>
+                                <div class="stat-item"><strong>High:</strong> ${ANCHORE_HIGH}</div>
+                                <div class="stat-item"><strong>Medium:</strong> ${ANCHORE_MEDIUM}</div>
+                                <div class="stat-item"><strong>Low:</strong> ${ANCHORE_LOW}</div>
+                            </div>
+                        </div>
+                        ${ANCHORE_FINDINGS}
                     </div>
                 </div>
             </div>
