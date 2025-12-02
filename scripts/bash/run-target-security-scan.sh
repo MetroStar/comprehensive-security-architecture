@@ -117,6 +117,91 @@ if [[ ! -d "$TARGET_DIR" ]]; then
 fi
 TARGET_DIR=$(realpath "$TARGET_DIR" 2>/dev/null || (cd "$TARGET_DIR" && pwd))
 
+# ============================================
+# DOCKER VALIDATION AND STARTUP
+# ============================================
+echo -e "${CYAN}🐳 Checking Docker Status...${NC}"
+
+check_docker_running() {
+    docker info &>/dev/null
+    return $?
+}
+
+start_docker() {
+    echo -e "${YELLOW}⏳ Starting Docker Desktop...${NC}"
+    
+    # macOS - Start Docker Desktop
+    if [[ "$(uname)" == "Darwin" ]]; then
+        open -a Docker
+        
+        echo -n "   Waiting for Docker to start"
+        local max_wait=60
+        local waited=0
+        
+        while ! check_docker_running; do
+            if [[ $waited -ge $max_wait ]]; then
+                echo ""
+                echo -e "${RED}❌ Docker failed to start within ${max_wait} seconds${NC}"
+                echo -e "${YELLOW}💡 Please start Docker Desktop manually and try again${NC}"
+                exit 1
+            fi
+            echo -n "."
+            sleep 2
+            waited=$((waited + 2))
+        done
+        echo ""
+        echo -e "${GREEN}✅ Docker is now running${NC}"
+        
+    # Linux - Try to start Docker service
+    elif [[ "$(uname)" == "Linux" ]]; then
+        if command -v systemctl &>/dev/null; then
+            sudo systemctl start docker
+            sleep 3
+            if check_docker_running; then
+                echo -e "${GREEN}✅ Docker service started${NC}"
+            else
+                echo -e "${RED}❌ Failed to start Docker service${NC}"
+                exit 1
+            fi
+        else
+            echo -e "${RED}❌ Docker is not running and cannot be auto-started${NC}"
+            echo -e "${YELLOW}💡 Please start Docker manually and try again${NC}"
+            exit 1
+        fi
+    else
+        echo -e "${RED}❌ Docker is not running${NC}"
+        echo -e "${YELLOW}💡 Please start Docker and try again${NC}"
+        exit 1
+    fi
+}
+
+# Check if Docker is installed
+if ! command -v docker &>/dev/null; then
+    echo -e "${RED}❌ Error: Docker is not installed${NC}"
+    echo -e "${YELLOW}💡 Please install Docker Desktop from https://docker.com${NC}"
+    exit 1
+fi
+
+# Check if Docker daemon is running
+if check_docker_running; then
+    echo -e "${GREEN}✅ Docker is running${NC}"
+else
+    echo -e "${YELLOW}⚠️  Docker is not running${NC}"
+    start_docker
+fi
+
+# Verify Docker is working with a quick test
+echo -n "   Verifying Docker connectivity... "
+if docker ps &>/dev/null; then
+    echo -e "${GREEN}OK${NC}"
+else
+    echo -e "${RED}FAILED${NC}"
+    echo -e "${RED}❌ Docker is running but not responding properly${NC}"
+    exit 1
+fi
+
+echo ""
+
 echo "============================================"
 echo "🛡️  Ten-Layer Security Scan Orchestrator"
 echo "============================================"
