@@ -99,6 +99,35 @@ docker pull anchore/grype:latest
 docker pull anchore/syft:latest
 Write-Host ""
 
+# Create persistent volume for Grype cache to speed up subsequent scans
+$GRYPE_CACHE_VOL = "grype-cache"
+docker volume create $GRYPE_CACHE_VOL 2>$null
+
+# Update Grype vulnerability database before scanning
+Write-Host "📥 Updating Grype vulnerability database..." -ForegroundColor $CYAN
+Write-Host "This ensures we have the latest CVE data (may take 1-2 minutes on first run)..."
+
+docker run --rm `
+    -v "${GRYPE_CACHE_VOL}:/root/.cache/grype" `
+    anchore/grype:latest `
+    db update 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append
+
+$DB_UPDATE_RESULT = $LASTEXITCODE
+if ($DB_UPDATE_RESULT -eq 0) {
+    Write-Host "✅ Grype vulnerability database updated successfully" -ForegroundColor $GREEN
+} else {
+    Write-Host "⚠️  Database update had issues (exit code: $DB_UPDATE_RESULT)" -ForegroundColor $YELLOW
+    Write-Host "   Proceeding with cached database..."
+}
+
+# Show database info
+Write-Host "📋 Checking Grype database status..." -ForegroundColor $CYAN
+docker run --rm `
+    -v "${GRYPE_CACHE_VOL}:/root/.cache/grype" `
+    anchore/grype:latest `
+    db status 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append
+Write-Host ""
+
 # Function to scan Docker image
 function Invoke-GrypeImageScan {
     param(
@@ -116,6 +145,7 @@ function Invoke-GrypeImageScan {
     Write-Host "   Generating Software Bill of Materials (SBOM)..."
     docker run --rm `
         -v /var/run/docker.sock:/var/run/docker.sock `
+        -v "${GRYPE_CACHE_VOL}:/root/.cache/grype" `
         -v "${PWD}/${OUTPUT_DIR}:/output" `
         anchore/grype:latest `
         $ImageName `

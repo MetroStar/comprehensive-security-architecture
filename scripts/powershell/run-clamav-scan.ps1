@@ -86,7 +86,35 @@ if ($dockerAvailable) {
     docker pull $CLAMAV_IMAGE 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append
     
     if ($LASTEXITCODE -eq 0) {
-        # Run scan
+        # Create a persistent volume for ClamAV definitions to speed up future scans
+        $CLAMAV_DB_VOL = "clamav-definitions"
+        docker volume create $CLAMAV_DB_VOL 2>$null
+        
+        # Update virus definitions before scanning
+        Write-Host "📥 Updating ClamAV virus definitions..." -ForegroundColor $CYAN
+        Write-Host "This ensures we have the latest malware signatures (may take 1-2 minutes)..."
+        
+        docker run --rm `
+            -v "${CLAMAV_DB_VOL}:/var/lib/clamav" `
+            $CLAMAV_IMAGE `
+            freshclam --stdout 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append
+        
+        $FRESHCLAM_RESULT = $LASTEXITCODE
+        if ($FRESHCLAM_RESULT -eq 0) {
+            Write-Host "✅ Virus definitions updated successfully" -ForegroundColor $GREEN
+        } else {
+            Write-Host "⚠️  Virus definition update had issues (exit code: $FRESHCLAM_RESULT)" -ForegroundColor $YELLOW
+            Write-Host "   Proceeding with available definitions..."
+        }
+        
+        # Show definition info
+        Write-Host "📋 Checking virus definition status..." -ForegroundColor $CYAN
+        docker run --rm `
+            -v "${CLAMAV_DB_VOL}:/var/lib/clamav" `
+            $CLAMAV_IMAGE `
+            clamscan --version 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append
+        
+        # Run scan with updated definitions
         Write-Host "🔍 Scanning directory: $TARGET_DIR" -ForegroundColor $BLUE
         Write-Host "This may take several minutes..."
         
@@ -96,6 +124,7 @@ if ($dockerAvailable) {
         docker run --rm `
             -v "${TARGET_DIR}:/workspace:ro" `
             -v "${OUTPUT_DIR}:/output" `
+            -v "${CLAMAV_DB_VOL}:/var/lib/clamav" `
             $CLAMAV_IMAGE `
             clamscan -r --log=/output/${SCAN_ID}_clamav-detailed.log /workspace 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append
         

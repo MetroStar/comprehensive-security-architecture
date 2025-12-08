@@ -116,6 +116,35 @@ if [ -d "$REPO_PATH" ]; then
     echo
 fi
 
+# Create persistent volume for Xeol cache to speed up subsequent scans
+XEOL_CACHE_VOL="xeol-cache"
+docker volume create "$XEOL_CACHE_VOL" 2>/dev/null || true
+
+# Update Xeol EOL database before scanning
+echo -e "${CYAN}📥 Updating Xeol end-of-life database...${NC}"
+echo "This ensures we have the latest EOL data..."
+
+docker run --rm \
+    -v "$XEOL_CACHE_VOL:/root/.cache" \
+    xeol/xeol:latest \
+    db update 2>&1 | tee -a "$SCAN_LOG"
+
+DB_UPDATE_RESULT=$?
+if [ $DB_UPDATE_RESULT -eq 0 ]; then
+    echo -e "${GREEN}✅ Xeol EOL database updated successfully${NC}"
+else
+    echo -e "${YELLOW}⚠️  Database update had issues (exit code: $DB_UPDATE_RESULT)${NC}"
+    echo "   Proceeding with cached database..."
+fi
+
+# Show database info
+echo -e "${CYAN}📋 Checking Xeol database status...${NC}"
+docker run --rm \
+    -v "$XEOL_CACHE_VOL:/root/.cache" \
+    xeol/xeol:latest \
+    db status 2>&1 | tee -a "$SCAN_LOG"
+echo
+
 # Function to scan a target
 scan_target() {
     local scan_type="$1"
@@ -127,11 +156,12 @@ scan_target() {
         
         local full_output_path="$OUTPUT_DIR/$output_file"
         
-        # Run xeol scan with Docker
+        # Run xeol scan with Docker using cached/updated database
         if [ "$scan_type" = "dir" ]; then
             # For directory scans, mount the target directory
             docker run --rm \
                 -v "$target:/workspace:ro" \
+                -v "$XEOL_CACHE_VOL:/root/.cache" \
                 xeol/xeol:latest \
                 dir:/workspace \
                 -o json 2>>"$SCAN_LOG" > "$full_output_path"
@@ -139,6 +169,7 @@ scan_target() {
             # For image scans, mount Docker socket to access host's Docker daemon
             docker run --rm \
                 -v /var/run/docker.sock:/var/run/docker.sock \
+                -v "$XEOL_CACHE_VOL:/root/.cache" \
                 xeol/xeol:latest \
                 "docker:$target" \
                 -o json 2>>"$SCAN_LOG" > "$full_output_path"

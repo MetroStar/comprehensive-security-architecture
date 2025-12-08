@@ -95,6 +95,35 @@ if [ -d "$REPO_PATH" ]; then
     echo
 fi
 
+# Create persistent volume for Trivy cache to speed up subsequent scans
+TRIVY_CACHE_VOL="trivy-cache"
+docker volume create "$TRIVY_CACHE_VOL" 2>/dev/null || true
+
+# Update Trivy vulnerability database before scanning
+echo -e "${CYAN}📥 Updating Trivy vulnerability database...${NC}"
+echo "This ensures we have the latest CVE data (may take 1-2 minutes on first run)..."
+
+docker run --rm \
+    -v "$TRIVY_CACHE_VOL:/root/.cache" \
+    aquasec/trivy:latest \
+    image --download-db-only 2>&1 | tee -a "$SCAN_LOG"
+
+DB_UPDATE_RESULT=$?
+if [ $DB_UPDATE_RESULT -eq 0 ]; then
+    echo -e "${GREEN}✅ Trivy vulnerability database updated successfully${NC}"
+else
+    echo -e "${YELLOW}⚠️  Database update had issues (exit code: $DB_UPDATE_RESULT)${NC}"
+    echo "   Proceeding with cached database..."
+fi
+
+# Show database info
+echo -e "${CYAN}📋 Checking Trivy database status...${NC}"
+docker run --rm \
+    -v "$TRIVY_CACHE_VOL:/root/.cache" \
+    aquasec/trivy:latest \
+    version 2>&1 | grep -E "(Version|VulnerabilityDB)" | tee -a "$SCAN_LOG"
+echo
+
 # Function to scan a target
 run_trivy_scan() {
     local scan_type="$1"
@@ -105,7 +134,7 @@ run_trivy_scan() {
     if [ ! -z "$target" ] && [ ! -z "$output_file" ]; then
         echo -e "${BLUE}🔍 Scanning ${scan_type}: ${target}${NC}"
         
-        # Run trivy scan with Docker
+        # Run trivy scan with Docker using cached/updated database
         if command -v docker &> /dev/null; then
             # Determine if this is an image scan or filesystem scan
             if [[ "$scan_type" == "base-"* ]] || [[ "$target" == *":"* ]]; then
@@ -114,12 +143,14 @@ run_trivy_scan() {
                 echo "   Scanning container image: $target"
                 docker run --rm \
                     -v /var/run/docker.sock:/var/run/docker.sock \
+                    -v "$TRIVY_CACHE_VOL:/root/.cache" \
                     aquasec/trivy:latest \
                     image "$target" \
                     --format json --quiet 2>> "$SCAN_LOG" > "$output_file"
             else
                 # Filesystem scan - skip node_modules and package-lock.json, redirect stderr to log, keep JSON clean
                 docker run --rm -v "${target}:/workspace:ro" \
+                    -v "$TRIVY_CACHE_VOL:/root/.cache" \
                     aquasec/trivy:latest \
                     fs /workspace \
                     --skip-dirs "node_modules" \

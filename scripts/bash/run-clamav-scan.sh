@@ -156,6 +156,11 @@ if command -v docker &> /dev/null; then
             ln -sf "${SCAN_ID}_clamav-detailed.log" "$OUTPUT_DIR/clamav-detailed.log"
             SCAN_RESULT=0
         else
+            # Update virus definitions before scanning
+            echo -e "${CYAN}📥 Updating ClamAV virus definitions...${NC}"
+            echo "This ensures we have the latest malware signatures..."
+            docker run --rm "$CLAMAV_IMAGE" freshclam 2>&1 | tee -a "$SCAN_LOG" || echo "Warning: Could not update definitions, using bundled versions"
+            
             # Run scan with alternative image
             echo -e "${BLUE}🔍 Scanning directory: $REPO_PATH${NC}"
             echo "This may take several minutes..."
@@ -168,13 +173,44 @@ if command -v docker &> /dev/null; then
             SCAN_RESULT=$?
         fi
     else
-        # Run scan with standard image
+        # Update virus definitions before scanning
+        echo -e "${CYAN}📥 Updating ClamAV virus definitions...${NC}"
+        echo "This ensures we have the latest malware signatures (may take 1-2 minutes)..."
+        
+        # Create a persistent volume for ClamAV definitions to speed up future scans
+        CLAMAV_DB_VOL="clamav-definitions"
+        docker volume create "$CLAMAV_DB_VOL" 2>/dev/null || true
+        
+        # Update definitions using freshclam
+        echo "Running freshclam to download latest virus definitions..."
+        docker run --rm $PLATFORM_FLAG \
+            -v "$CLAMAV_DB_VOL:/var/lib/clamav" \
+            "$CLAMAV_IMAGE" \
+            freshclam --stdout 2>&1 | tee -a "$SCAN_LOG"
+        
+        FRESHCLAM_RESULT=$?
+        if [ $FRESHCLAM_RESULT -eq 0 ]; then
+            echo -e "${GREEN}✅ Virus definitions updated successfully${NC}"
+        else
+            echo -e "${YELLOW}⚠️  Virus definition update had issues (exit code: $FRESHCLAM_RESULT)${NC}"
+            echo "   Proceeding with available definitions..."
+        fi
+        
+        # Show definition info
+        echo -e "${CYAN}📋 Checking virus definition status...${NC}"
+        docker run --rm $PLATFORM_FLAG \
+            -v "$CLAMAV_DB_VOL:/var/lib/clamav" \
+            "$CLAMAV_IMAGE" \
+            clamscan --version 2>&1 | tee -a "$SCAN_LOG"
+        
+        # Run scan with standard image and updated definitions
         echo -e "${BLUE}🔍 Scanning directory: $REPO_PATH${NC}"
         echo "This may take several minutes..."
         
         docker run --rm $PLATFORM_FLAG \
             -v "$REPO_PATH:/workspace:ro" \
             -v "$OUTPUT_DIR:/output" \
+            -v "$CLAMAV_DB_VOL:/var/lib/clamav" \
             "$CLAMAV_IMAGE" \
             clamscan -r --exclude-dir=node_modules --log=/output/${SCAN_ID}_clamav-detailed.log /workspace 2>&1 | tee -a "$SCAN_LOG"
         SCAN_RESULT=$?

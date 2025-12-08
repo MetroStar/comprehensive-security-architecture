@@ -100,6 +100,35 @@ Write-Host "Pulling Trivy image..."
 docker pull aquasec/trivy:latest
 Write-Host ""
 
+# Create persistent volume for Trivy cache to speed up subsequent scans
+$TRIVY_CACHE_VOL = "trivy-cache"
+docker volume create $TRIVY_CACHE_VOL 2>$null
+
+# Update Trivy vulnerability database before scanning
+Write-Host "📥 Updating Trivy vulnerability database..." -ForegroundColor $CYAN
+Write-Host "This ensures we have the latest CVE data (may take 1-2 minutes on first run)..."
+
+docker run --rm `
+    -v "${TRIVY_CACHE_VOL}:/root/.cache" `
+    aquasec/trivy:latest `
+    image --download-db-only 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append
+
+$DB_UPDATE_RESULT = $LASTEXITCODE
+if ($DB_UPDATE_RESULT -eq 0) {
+    Write-Host "✅ Trivy vulnerability database updated successfully" -ForegroundColor $GREEN
+} else {
+    Write-Host "⚠️  Database update had issues (exit code: $DB_UPDATE_RESULT)" -ForegroundColor $YELLOW
+    Write-Host "   Proceeding with cached database..."
+}
+
+# Show database info
+Write-Host "📋 Checking Trivy database status..." -ForegroundColor $CYAN
+docker run --rm `
+    -v "${TRIVY_CACHE_VOL}:/root/.cache" `
+    aquasec/trivy:latest `
+    version 2>&1 | Select-String -Pattern "(Version|VulnerabilityDB)" | Tee-Object -FilePath $SCAN_LOG -Append
+Write-Host ""
+
 # Function to scan Docker image
 function Invoke-TrivyImageScan {
     param(
@@ -116,6 +145,7 @@ function Invoke-TrivyImageScan {
     $outputPath = Join-Path $OUTPUT_DIR $OutputFile
     docker run --rm `
         -v /var/run/docker.sock:/var/run/docker.sock `
+        -v "${TRIVY_CACHE_VOL}:/root/.cache" `
         -v "${PWD}/${OUTPUT_DIR}:/output" `
         aquasec/trivy:latest image `
         --format json `
