@@ -52,10 +52,15 @@ show_help() {
 }
 
 # Parse arguments
+SCAN_MODE=""
 for arg in "$@"; do
     case $arg in
         -h|--help)
             show_help
+            ;;
+        filesystem|images|base|registry|kubernetes|all)
+            # This is a scan mode, not a path
+            SCAN_MODE="$arg"
             ;;
     esac
 done
@@ -76,8 +81,14 @@ fi
 # Initialize scan environment for Trivy
 init_scan_environment "trivy"
 
-# Set REPO_PATH (first argument or TARGET_DIR from environment)
-REPO_PATH="${1:-${TARGET_DIR:-$(pwd)}}"
+# Set REPO_PATH - use TARGET_DIR from environment (preferred) or check if $1 is a valid directory
+if [ -n "$TARGET_DIR" ] && [ -d "$TARGET_DIR" ]; then
+    REPO_PATH="$TARGET_DIR"
+elif [ -n "$1" ] && [ -d "$1" ]; then
+    REPO_PATH="$1"
+else
+    REPO_PATH="$(pwd)"
+fi
 
 echo
 echo -e "${WHITE}============================================${NC}"
@@ -153,8 +164,6 @@ run_trivy_scan() {
                     -v "$TRIVY_CACHE_VOL:/root/.cache" \
                     aquasec/trivy:latest \
                     fs /workspace \
-                    --skip-dirs "node_modules" \
-                    --skip-dirs "**/node_modules" \
                     --skip-files "package-lock.json" \
                     --skip-files "**/package-lock.json" \
                     --format json --quiet 2>> "$SCAN_LOG" > "$output_file"
@@ -178,48 +187,54 @@ run_trivy_scan() {
     fi
 }
 
-# 1. Container Security Scan
-echo -e "${CYAN}🛡️  Step 1: Container Security Scan${NC}"
-echo "=================================="
+# 1. Container Security Scan (skip if mode is "filesystem" only)
+if [ "$SCAN_MODE" != "filesystem" ]; then
+    echo -e "${CYAN}🛡️  Step 1: Container Security Scan${NC}"
+    echo "=================================="
 
-# Scan common base images - use centralized approved images if available
-if [ ${#APPROVED_BASE_IMAGES[@]} -gt 0 ]; then
-    BASE_IMAGES=("${APPROVED_BASE_IMAGES[@]}")
-    echo "📋 Using ${#BASE_IMAGES[@]} approved Bitnami hardened base images"
-else
-    # Fallback to hardcoded Bitnami images
-    # Fallback to minimal Bitnami images
-    BASE_IMAGES=(
-        "bitnami/nginx:latest"
-        "bitnami/node:latest"
-        "bitnami/python:latest"
-        "bitnami/postgresql:latest"
-    )
+    # Scan common base images - use centralized approved images if available
+    if [ ${#APPROVED_BASE_IMAGES[@]} -gt 0 ]; then
+        BASE_IMAGES=("${APPROVED_BASE_IMAGES[@]}")
+        echo "📋 Using ${#BASE_IMAGES[@]} approved Bitnami hardened base images"
+    else
+        # Fallback to hardcoded Bitnami images
+        # Fallback to minimal Bitnami images
+        BASE_IMAGES=(
+            "bitnami/nginx:latest"
+            "bitnami/node:latest"
+            "bitnami/python:latest"
+            "bitnami/postgresql:latest"
+        )
+    fi
+
+    for image in "${BASE_IMAGES[@]}"; do
+        if command -v docker &> /dev/null; then
+            echo -e "${BLUE}📦 Scanning base image: $image${NC}"
+            
+            # Check if image exists locally first
+            if docker image inspect "$image" &>/dev/null; then
+                echo "   ✅ Using cached image"
+            else
+                echo "   ⏬ Pulling image..."
+                if ! docker pull "$image" >> "$SCAN_LOG" 2>&1; then
+                    echo "   ⚠️ Pull failed - skipping this image"
+                    continue
+                fi
+            fi
+            
+            run_trivy_scan "base-$(echo $image | tr ':/' '-')" "$image"
+        fi
+    done
 fi
 
-for image in "${BASE_IMAGES[@]}"; do
-    if command -v docker &> /dev/null; then
-        echo -e "${BLUE}📦 Scanning base image: $image${NC}"
-        
-        # Check if image exists locally first
-        if docker image inspect "$image" &>/dev/null; then
-            echo "   ✅ Using cached image"
-        else
-            echo "   ⏬ Pulling image..."
-            if ! docker pull "$image" >> "$SCAN_LOG" 2>&1; then
-                echo "   ⚠️ Pull failed - skipping this image"
-                continue
-            fi
-        fi
-        
-        run_trivy_scan "base-$(echo $image | tr ':/' '-')" "$image"
+# 2. Filesystem scan (skip if mode is "base" or "images" only)
+if [ "$SCAN_MODE" != "base" ] && [ "$SCAN_MODE" != "images" ]; then
+    if [ ! -z "$REPO_PATH" ] && [ -d "$REPO_PATH" ]; then
+        echo -e "${CYAN}🛡️  Step 2: Filesystem Security Scan${NC}"
+        echo "=================================="
+        echo -e "${BLUE}📁 Scanning filesystem: $REPO_PATH${NC}"
+        run_trivy_scan "filesystem" "$REPO_PATH"
     fi
-done
-
-# Scan filesystem if target directory provided
-if [ ! -z "$REPO_PATH" ] && [ -d "$REPO_PATH" ]; then
-    echo -e "${BLUE}📁 Scanning filesystem: $REPO_PATH${NC}"
-    run_trivy_scan "filesystem" "$REPO_PATH"
 fi
 
 echo

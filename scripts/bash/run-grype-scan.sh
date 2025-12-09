@@ -142,7 +142,8 @@ echo -e "${CYAN}📥 Updating Grype vulnerability database...${NC}"
 echo "This ensures we have the latest CVE data (may take 1-2 minutes on first run)..."
 
 docker run --rm \
-    -v "$GRYPE_CACHE_VOL:/root/.cache/grype" \
+    -e GRYPE_DB_CACHE_DIR=/cache \
+    -v "$GRYPE_CACHE_VOL:/cache" \
     anchore/grype:latest \
     db update 2>&1 | tee -a "$SCAN_LOG"
 
@@ -157,7 +158,8 @@ fi
 # Show database info
 echo -e "${CYAN}📋 Checking Grype database status...${NC}"
 docker run --rm \
-    -v "$GRYPE_CACHE_VOL:/root/.cache/grype" \
+    -e GRYPE_DB_CACHE_DIR=/cache \
+    -v "$GRYPE_CACHE_VOL:/cache" \
     anchore/grype:latest \
     db status 2>&1 | tee -a "$SCAN_LOG"
 echo
@@ -179,15 +181,18 @@ run_grype_scan() {
             # Image scan - mount Docker socket to access host's Docker daemon
             echo "   Scanning container image: $target"
             docker run --rm \
+                -e GRYPE_DB_CACHE_DIR=/cache \
                 -v /var/run/docker.sock:/var/run/docker.sock \
-                -v "$GRYPE_CACHE_VOL:/root/.cache/grype" \
+                -v "$GRYPE_CACHE_VOL:/cache" \
                 anchore/grype:latest \
                 "docker:$target" -o json 2>>"$SCAN_LOG" > "$output_file"
         else
             # Filesystem scan - mount the directory and scan
             echo "   Scanning filesystem: $target"
-            docker run --rm -v "$target:/workspace:ro" \
-                -v "$GRYPE_CACHE_VOL:/root/.cache/grype" \
+            docker run --rm \
+                -e GRYPE_DB_CACHE_DIR=/cache \
+                -v "$target:/workspace:ro" \
+                -v "$GRYPE_CACHE_VOL:/cache" \
                 anchore/grype:latest \
                 dir:/workspace -o json 2>>"$SCAN_LOG" > "$output_file"
         fi

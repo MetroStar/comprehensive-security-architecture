@@ -108,7 +108,8 @@ Write-Host "📥 Updating Grype vulnerability database..." -ForegroundColor $CYA
 Write-Host "This ensures we have the latest CVE data (may take 1-2 minutes on first run)..."
 
 docker run --rm `
-    -v "${GRYPE_CACHE_VOL}:/root/.cache/grype" `
+    -e GRYPE_DB_CACHE_DIR=/cache `
+    -v "${GRYPE_CACHE_VOL}:/cache" `
     anchore/grype:latest `
     db update 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append
 
@@ -123,7 +124,8 @@ if ($DB_UPDATE_RESULT -eq 0) {
 # Show database info
 Write-Host "📋 Checking Grype database status..." -ForegroundColor $CYAN
 docker run --rm `
-    -v "${GRYPE_CACHE_VOL}:/root/.cache/grype" `
+    -e GRYPE_DB_CACHE_DIR=/cache `
+    -v "${GRYPE_CACHE_VOL}:/cache" `
     anchore/grype:latest `
     db status 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append
 Write-Host ""
@@ -144,8 +146,9 @@ function Invoke-GrypeImageScan {
     
     Write-Host "   Generating Software Bill of Materials (SBOM)..."
     docker run --rm `
+        -e GRYPE_DB_CACHE_DIR=/cache `
         -v /var/run/docker.sock:/var/run/docker.sock `
-        -v "${GRYPE_CACHE_VOL}:/root/.cache/grype" `
+        -v "${GRYPE_CACHE_VOL}:/cache" `
         -v "${PWD}/${OUTPUT_DIR}:/output" `
         anchore/grype:latest `
         $ImageName `
