@@ -732,14 +732,52 @@ SONAR_BUGS=0
 SONAR_VULNS=0
 SONAR_CODE_SMELLS=0
 SONAR_COVERAGE="N/A"
+SONAR_TOTAL_TESTS=0
+SONAR_PASSED_TESTS=0
+SONAR_FAILED_TESTS=0
+SONAR_SKIPPED_TESTS=0
+SONAR_HOST_URL="N/A"
+SONAR_PROJECT_KEY="N/A"
+SONAR_PROJECT_URL=""
+
 if [ -f "$LATEST_SONAR" ]; then
-    SONAR_STATUS=$(jq -r '.status' "$LATEST_SONAR" 2>/dev/null || echo "NO_DATA")
+    SONAR_STATUS=$(jq -r '.status // "NO_DATA"' "$LATEST_SONAR" 2>/dev/null || echo "NO_DATA")
+    SONAR_TOTAL_TESTS=$(jq -r '.test_results.total_tests // 0' "$LATEST_SONAR" 2>/dev/null || echo "0")
+    SONAR_PASSED_TESTS=$(jq -r '.test_results.passed_tests // 0' "$LATEST_SONAR" 2>/dev/null || echo "0")
+    SONAR_FAILED_TESTS=$(jq -r '.test_results.failed_tests // 0' "$LATEST_SONAR" 2>/dev/null || echo "0")
+    SONAR_SKIPPED_TESTS=$(jq -r '.test_results.skipped_tests // 0' "$LATEST_SONAR" 2>/dev/null || echo "0")
+    SONAR_COVERAGE=$(jq -r '.coverage.statement_coverage // "N/A"' "$LATEST_SONAR" 2>/dev/null || echo "N/A")
+    SONAR_HOST_URL=$(jq -r '.host // "N/A"' "$LATEST_SONAR" 2>/dev/null || echo "N/A")
+    SONAR_PROJECT_KEY=$(jq -r '.project // "N/A"' "$LATEST_SONAR" 2>/dev/null || echo "N/A")
+    
+    # Generate project dashboard URL
+    if [ "$SONAR_HOST_URL" != "N/A" ] && [ "$SONAR_PROJECT_KEY" != "N/A" ]; then
+        SONAR_PROJECT_URL="${SONAR_HOST_URL}/dashboard?id=${SONAR_PROJECT_KEY}"
+    fi
+    
     if [ "$SONAR_STATUS" = "NO_PROJECT_DETECTED" ]; then
         SONAR_FINDINGS="<p class=\"no-findings\">No SonarQube project detected</p>"
         SONAR_CRITICAL=0
         SONAR_HIGH=0
     else
-        SONAR_FINDINGS="<p class=\"no-findings\">✅ SonarQube analysis complete - check server for details</p>"
+        SONAR_FINDINGS="<div class=\"stats-detail-box\" style=\"background:#e0f2fe;border-left:3px solid #0369a1;\">"
+        SONAR_FINDINGS="${SONAR_FINDINGS}<h4 style=\"color:#0369a1;margin-bottom:10px;\">📊 Test Summary</h4>"
+        SONAR_FINDINGS="${SONAR_FINDINGS}<div class=\"stats-grid-small\">"
+        SONAR_FINDINGS="${SONAR_FINDINGS}<div class=\"stat-item\"><strong>Total Tests:</strong> ${SONAR_TOTAL_TESTS}</div>"
+        SONAR_FINDINGS="${SONAR_FINDINGS}<div class=\"stat-item\"><strong>✅ Passed:</strong> ${SONAR_PASSED_TESTS}</div>"
+        SONAR_FINDINGS="${SONAR_FINDINGS}<div class=\"stat-item\"><strong>❌ Failed:</strong> ${SONAR_FAILED_TESTS}</div>"
+        SONAR_FINDINGS="${SONAR_FINDINGS}<div class=\"stat-item\"><strong>⏭️ Skipped:</strong> ${SONAR_SKIPPED_TESTS}</div>"
+        SONAR_FINDINGS="${SONAR_FINDINGS}<div class=\"stat-item\"><strong>📈 Coverage:</strong> ${SONAR_COVERAGE}</div>"
+        SONAR_FINDINGS="${SONAR_FINDINGS}<div class=\"stat-item\"><strong>🎯 Status:</strong> ${SONAR_STATUS}</div>"
+        SONAR_FINDINGS="${SONAR_FINDINGS}</div>"
+        if [ -n "$SONAR_PROJECT_URL" ]; then
+            SONAR_FINDINGS="${SONAR_FINDINGS}<div style=\"margin-top:15px;padding:10px;background:white;border-radius:4px;\">"
+            SONAR_FINDINGS="${SONAR_FINDINGS}<strong>🔗 Project Dashboard:</strong><br/>"
+            SONAR_FINDINGS="${SONAR_FINDINGS}<a href=\"${SONAR_PROJECT_URL}\" target=\"_blank\" style=\"color:#0369a1;text-decoration:underline;word-break:break-all;\">${SONAR_PROJECT_URL}</a>"
+            SONAR_FINDINGS="${SONAR_FINDINGS}</div>"
+        fi
+        SONAR_FINDINGS="${SONAR_FINDINGS}</div>"
+        SONAR_FINDINGS="${SONAR_FINDINGS}<p class=\"no-findings\" style=\"margin-top:10px;\">✅ SonarQube analysis complete</p>"
         SONAR_CRITICAL=0
         SONAR_HIGH=0
     fi

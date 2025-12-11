@@ -169,7 +169,20 @@ if command -v docker &> /dev/null; then
                 -v "$REPO_PATH:/workspace:ro" \
                 -v "$OUTPUT_DIR:/output" \
                 "$CLAMAV_IMAGE" \
-                clamscan -r --exclude-dir=node_modules --log=/output/${SCAN_ID}_clamav-detailed.log /workspace 2>&1 | tee -a "$SCAN_LOG"
+                clamscan -r \
+                --exclude-dir=node_modules \
+                --scan-mail=yes \
+                --scan-html=yes \
+                --scan-pdf=yes \
+                --scan-ole2=yes \
+                --scan-archive=yes \
+                --alert-encrypted=yes \
+                --alert-encrypted-archive=yes \
+                --alert-encrypted-doc=yes \
+                --max-recursion=30 \
+                --max-filesize=2000M \
+                --max-scansize=2000M \
+                --log=/output/${SCAN_ID}_clamav-detailed.log /workspace 2>&1 | tee -a "$SCAN_LOG"
             SCAN_RESULT=$?
         fi
     else
@@ -212,7 +225,20 @@ if command -v docker &> /dev/null; then
             -v "$OUTPUT_DIR:/output" \
             -v "$CLAMAV_DB_VOL:/var/lib/clamav" \
             "$CLAMAV_IMAGE" \
-            clamscan -r --exclude-dir=node_modules --log=/output/${SCAN_ID}_clamav-detailed.log /workspace 2>&1 | tee -a "$SCAN_LOG"
+            clamscan -r \
+            --exclude-dir=node_modules \
+            --scan-mail=yes \
+            --scan-html=yes \
+            --scan-pdf=yes \
+            --scan-ole2=yes \
+            --scan-archive=yes \
+            --alert-encrypted=yes \
+            --alert-encrypted-archive=yes \
+            --alert-encrypted-doc=yes \
+            --max-recursion=30 \
+            --max-filesize=2000M \
+            --max-scansize=2000M \
+            --log=/output/${SCAN_ID}_clamav-detailed.log /workspace 2>&1 | tee -a "$SCAN_LOG"
         SCAN_RESULT=$?
     fi
     

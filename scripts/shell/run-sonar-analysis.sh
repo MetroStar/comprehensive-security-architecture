@@ -141,8 +141,12 @@ for props_file in "${SONAR_PROPERTIES_FILES[@]}"; do
     PROJECT_KEY=$(grep -E "^sonar\.projectKey\s*=" "$props_file" | cut -d'=' -f2 | tr -d ' ' | tr -d '\n' 2>/dev/null)
     # Extract host URL from properties file
     PROPS_HOST_URL=$(grep -E "^sonar\.host\.url\s*=" "$props_file" | cut -d'=' -f2 | tr -d ' ' | tr -d '\n' 2>/dev/null)
-    # Extract token from properties file
+    # Extract token from properties file (supports both sonar.token and sonar.login)
     PROPS_TOKEN=$(grep -E "^sonar\.token\s*=" "$props_file" | grep -v '^#' | cut -d'=' -f2 | tr -d ' ' | tr -d '\n' 2>/dev/null)
+    if [ -z "$PROPS_TOKEN" ]; then
+      # Fallback to sonar.login (legacy property name)
+      PROPS_TOKEN=$(grep -E "^sonar\.login\s*=" "$props_file" | grep -v '^#' | cut -d'=' -f2 | tr -d ' ' | tr -d '\n' 2>/dev/null)
+    fi
     if [ -n "$PROJECT_KEY" ]; then
       echo "[INFO] Using project key from properties: $PROJECT_KEY"
       if [ -n "$PROPS_HOST_URL" ]; then
@@ -153,7 +157,9 @@ for props_file in "${SONAR_PROPERTIES_FILES[@]}"; do
       if [ -n "$PROPS_TOKEN" ]; then
         TOKEN_PREFIX="${PROPS_TOKEN:0:8}"
         TOKEN_LENGTH=${#PROPS_TOKEN}
+        echo "[WARNING] ⚠️  Found hardcoded SonarQube token in properties file!"
         echo "[INFO] Using token from properties: ${TOKEN_PREFIX}...(${TOKEN_LENGTH} chars)"
+        echo "[SECURITY] Consider moving token to .env.sonar file or environment variables"
         SONAR_TOKEN="$PROPS_TOKEN"
       fi
       break
@@ -639,6 +645,7 @@ EOL
 
 echo "[OK] Local test results saved to: $OUTPUT_DIR/${SCAN_ID}_sonar-analysis-results.json"
 echo ""
+echo ""
 echo "[INFO] Test Summary:"
 echo "=================="
 echo "• Total Tests: $TOTAL_TESTS"
@@ -649,4 +656,10 @@ echo "• Coverage: $COVERAGE_PERCENT"
 echo "• Status: $ANALYSIS_STATUS"
 echo ""
 
-echo "Analysis complete! Check your SonarQube dashboard at $SONAR_HOST_URL"
+# Generate project dashboard URL
+PROJECT_URL="${SONAR_HOST_URL}/dashboard?id=${PROJECT_KEY}"
+
+echo "Analysis complete! Check your SonarQube dashboard at ${SONAR_HOST_URL}"
+echo "📊 Project Dashboard: ${PROJECT_URL}"
+echo ""
+echo "✅ SonarQube Analysis completed successfully"

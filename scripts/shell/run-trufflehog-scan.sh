@@ -160,13 +160,27 @@ sample-data/
 examples/
 EOF
         
+        # Create custom regex for SonarQube tokens
+        cat > "$OUTPUT_DIR/.trufflehog-custom-regex.yaml" << 'REGEX_EOF'
+detectors:
+  - name: SonarQube
+    keywords:
+      - sqp_
+      - sonar.login
+      - sonar.token
+    regex:
+      sonar_token: 'sqp_[a-zA-Z0-9]{40}'
+REGEX_EOF
+        
         docker run --rm \
             -v "$target:/workspace" \
             -v "$OUTPUT_DIR/.trufflehogignore:/root/.trufflehogignore" \
+            -v "$OUTPUT_DIR/.trufflehog-custom-regex.yaml:/root/.trufflehog-custom-regex.yaml" \
             trufflesecurity/trufflehog:latest \
             filesystem /workspace \
             --json \
             --exclude-paths=/root/.trufflehogignore \
+            --config=/root/.trufflehog-custom-regex.yaml \
             2>&1 | tee -a "$SCAN_LOG" > "$output_file"
     else
         echo "⚠️  Docker not available - TruffleHog scan skipped"
