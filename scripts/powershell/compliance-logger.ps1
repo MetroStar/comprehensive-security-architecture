@@ -70,7 +70,7 @@ function New-ComplianceDashboard {
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0F1F3D 0%, #1a2332 50%, #C41E3A 100%);
             min-height: 100vh;
             padding: 20px;
         }

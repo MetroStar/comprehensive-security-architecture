@@ -128,7 +128,7 @@ if ($PythonCmd) {
     <title>Security Dashboard</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; background-color: #f5f5f5; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+        .header { background: linear-gradient(135deg, #C41E3A 0%, #0F1F3D 100%); color: white; padding: 30px; text-align: center; }
         .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
         .message { background: white; padding: 30px; border-radius: 12px; text-align: center; }
     </style>
@@ -163,7 +163,7 @@ if ($PythonCmd) {
     <title>Security Dashboard</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; background-color: #f5f5f5; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+        .header { background: linear-gradient(135deg, #C41E3A 0%, #0F1F3D 100%); color: white; padding: 30px; text-align: center; }
         .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
         .message { background: white; padding: 30px; border-radius: 12px; text-align: center; }
     </style>
@@ -251,9 +251,9 @@ $IndexContent = @"
         .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .header { text-align: center; margin-bottom: 30px; }
         .links { display: grid; gap: 15px; }
-        .link { display: block; padding: 15px; background: #007bff; color: white; text-decoration: none; border-radius: 6px; text-align: center; transition: background 0.3s; }
-        .link:hover { background: #0056b3; }
-        .dashboard-link { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); font-size: 18px; font-weight: bold; }
+        .link { display: block; padding: 15px; background: #0F1F3D; color: white; text-decoration: none; border-radius: 6px; text-align: center; transition: background 0.3s; }
+        .link:hover { background: #1a2332; }
+        .dashboard-link { background: linear-gradient(135deg, #C41E3A 0%, #8B1328 100%); font-size: 18px; font-weight: bold; }
     </style>
 </head>
 <body>

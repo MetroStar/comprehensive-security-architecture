@@ -114,7 +114,9 @@ echo
 # Display IaC file count for transparency
 if [ -d "$TARGET_SCAN_DIR" ]; then
     echo -e "${CYAN}📊 Infrastructure-as-Code Analysis:${NC}"
-    YAML_COUNT=$(count_scannable_files "$TARGET_SCAN_DIR" "*.yaml" && count_scannable_files "$TARGET_SCAN_DIR" "*.yml")
+    YAML_COUNT_1=$(count_scannable_files "$TARGET_SCAN_DIR" "*.yaml")
+    YAML_COUNT_2=$(count_scannable_files "$TARGET_SCAN_DIR" "*.yml")
+    YAML_COUNT=$((YAML_COUNT_1 + YAML_COUNT_2))
     TF_COUNT=$(count_scannable_files "$TARGET_SCAN_DIR" "*.tf")
     DOCKERFILE_COUNT=$(find "$TARGET_SCAN_DIR" -name "Dockerfile*" 2>/dev/null | wc -l | tr -d ' ')
     JSON_COUNT=$(count_scannable_files "$TARGET_SCAN_DIR" "*.json")
@@ -339,9 +341,88 @@ else
     SCAN_RESULT=0
 fi
 
+# Calculate scan duration
+SCAN_END_TIME=$(date +%s)
+SCAN_DURATION=$((SCAN_END_TIME - $(date -j -f "%Y-%m-%d_%H-%M-%S" "$TIMESTAMP" "+%s" 2>/dev/null || date +%s)))
+
+echo
+echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${CYAN}║                 📊 CHECKOV SCAN STATISTICS                     ║${NC}"
+echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+
+# File type statistics
+if command -v jq &> /dev/null && [ -f "$RESULTS_FILE" ]; then
+    IS_ARRAY=$(jq -r 'if type == "array" then "yes" else "no" end' "$RESULTS_FILE" 2>/dev/null)
+    
+    if [ "$IS_ARRAY" == "yes" ]; then
+        TOTAL_PASSED=$(jq '[.[] | .summary.passed // 0] | add // 0' "$RESULTS_FILE" 2>/dev/null)
+        TOTAL_FAILED=$(jq '[.[] | .summary.failed // 0] | add // 0' "$RESULTS_FILE" 2>/dev/null)
+        TOTAL_SKIPPED=$(jq '[.[] | .summary.skipped // 0] | add // 0' "$RESULTS_FILE" 2>/dev/null)
+        FRAMEWORKS=$(jq -r '[.[] | .check_type] | join(", ")' "$RESULTS_FILE" 2>/dev/null)
+    else
+        TOTAL_PASSED=$(jq -r '.summary.passed // 0' "$RESULTS_FILE" 2>/dev/null)
+        TOTAL_FAILED=$(jq -r '.summary.failed // 0' "$RESULTS_FILE" 2>/dev/null)
+        TOTAL_SKIPPED=$(jq -r '.summary.skipped // 0' "$RESULTS_FILE" 2>/dev/null)
+        FRAMEWORKS=$(jq -r '.check_type // "terraform"' "$RESULTS_FILE" 2>/dev/null)
+    fi
+    
+    TOTAL_CHECKS=$((TOTAL_PASSED + TOTAL_FAILED + TOTAL_SKIPPED))
+    
+    # Display statistics
+    printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${GREEN}%-30s${NC} ${CYAN}║${NC}\n" "Files Scanned:" "$((YAML_COUNT + TF_COUNT + DOCKERFILE_COUNT + JSON_COUNT + HELM_COUNT))"
+    printf "${CYAN}║${NC}   ${BLUE}%-28s${NC} ${CYAN}%-30s${NC} ${CYAN}║${NC}\n" "• YAML/YML:" "$YAML_COUNT"
+    printf "${CYAN}║${NC}   ${BLUE}%-28s${NC} ${CYAN}%-30s${NC} ${CYAN}║${NC}\n" "• Terraform:" "$TF_COUNT"
+    printf "${CYAN}║${NC}   ${BLUE}%-28s${NC} ${CYAN}%-30s${NC} ${CYAN}║${NC}\n" "• Dockerfiles:" "$DOCKERFILE_COUNT"
+    printf "${CYAN}║${NC}   ${BLUE}%-28s${NC} ${CYAN}%-30s${NC} ${CYAN}║${NC}\n" "• JSON:" "$JSON_COUNT"
+    printf "${CYAN}║${NC}   ${BLUE}%-28s${NC} ${CYAN}%-30s${NC} ${CYAN}║${NC}\n" "• Helm Charts:" "$HELM_COUNT"
+    echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+    printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${PURPLE}%-30s${NC} ${CYAN}║${NC}\n" "Frameworks Detected:" "$FRAMEWORKS"
+    echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+    printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${CYAN}%-30s${NC} ${CYAN}║${NC}\n" "Total Checks Run:" "$TOTAL_CHECKS"
+    printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${GREEN}%-30s${NC} ${CYAN}║${NC}\n" "Passed:" "$TOTAL_PASSED"
+    printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${RED}%-30s${NC} ${CYAN}║${NC}\n" "Failed:" "$TOTAL_FAILED"
+    printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${YELLOW}%-30s${NC} ${CYAN}║${NC}\n" "Skipped:" "$TOTAL_SKIPPED"
+    echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+    printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${BLUE}%-30s${NC} ${CYAN}║${NC}\n" "Scan Duration:" "${SCAN_DURATION}s"
+    echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+    
+    # Security status
+    if [ "$TOTAL_FAILED" -eq 0 ]; then
+        printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${GREEN}%-30s${NC} ${CYAN}║${NC}\n" "Security Status:" "✅ COMPLIANT"
+    else
+        printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${YELLOW}%-30s${NC} ${CYAN}║${NC}\n" "Security Status:" "⚠️  ISSUES FOUND"
+    fi
+else
+    # Fallback for systems without jq
+    printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${YELLOW}%-30s${NC} ${CYAN}║${NC}\n" "Statistics:" "Install jq for details"
+fi
+
+echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+
+# Save statistics to JSON for dashboard
+if command -v jq &> /dev/null && [ -f "$RESULTS_FILE" ]; then
+    cat > "$OUTPUT_DIR/checkov-statistics.json" << STATS_EOF
+{
+  "files_scanned": $((YAML_COUNT + TF_COUNT + DOCKERFILE_COUNT + JSON_COUNT + HELM_COUNT)),
+  "yaml_count": $YAML_COUNT,
+  "terraform_count": $TF_COUNT,
+  "dockerfile_count": $DOCKERFILE_COUNT,
+  "json_count": $JSON_COUNT,
+  "helm_count": $HELM_COUNT,
+  "frameworks": "$FRAMEWORKS",
+  "total_checks": $TOTAL_CHECKS,
+  "passed": $TOTAL_PASSED,
+  "failed": $TOTAL_FAILED,
+  "skipped": $TOTAL_SKIPPED,
+  "scan_duration": ${SCAN_DURATION},
+  "security_status": "$([[ $TOTAL_FAILED -eq 0 ]] && echo "COMPLIANT" || echo "ISSUES_FOUND")"
+}
+STATS_EOF
+fi
+
 echo
 echo -e "${CYAN}📊 Checkov Infrastructure Security Summary${NC}"
-echo "=========================================="
+echo "========================================="
 
 # Basic summary from results file
 if [ -f "$RESULTS_FILE" ]; then

@@ -56,7 +56,7 @@ function Invoke-XeolScan {
         if ($LASTEXITCODE -eq 0) {
             docker run --rm -v "${PWD}:/workspace" `
                 -v "${OUTPUT_DIR}:/output" `
-                anchore/xeol:latest `
+                noqcks/xeol:latest `
                 "$Target" `
                 --output json `
                 --file "/output/$(Split-Path -Leaf $outputFile)" 2>&1 | Tee-Object -FilePath $SCAN_LOG -Append | Out-Null

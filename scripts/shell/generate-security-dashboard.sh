@@ -340,7 +340,7 @@ if [ -d "$TRIVY_DIR" ]; then
 <div class=\"finding-desc\">" + .desc_short + "...</div>
 <div class=\"finding-details\" style=\"display:none;\">
 <div class=\"detail-section\"><h5>Vulnerability Info</h5>
-<div><strong>CVE ID:</strong> <code>" + .id + "</code> <a href=\"" + .primary_url + "\" target=\"_blank\" style=\"color:#667eea;\">View Details</a></div>
+<div><strong>CVE ID:</strong> <code>" + .id + "</code> <a href=\"" + .primary_url + "\" target=\"_blank\" style=\"color:#C41E3A;\">View Details</a></div>
 <div><strong>CWE IDs:</strong> <code>" + .cwes + "</code></div>
 <div><strong>Data Source:</strong> " + .data_source + "</div>
 <div><strong>Published:</strong> " + .published + "</div>
@@ -636,6 +636,25 @@ CHECKOV_CRITICAL=0
 CHECKOV_HIGH=$CHECKOV_FAILED
 CHECKOV_TOTAL=$((CHECKOV_PASSED + CHECKOV_FAILED + CHECKOV_SKIPPED))
 
+# Read Checkov statistics file for detailed info
+CHECKOV_STATS_FILE="$CHECKOV_DIR/checkov-statistics.json"
+CHECKOV_FILES_SCANNED=0
+CHECKOV_YAML_COUNT=0
+CHECKOV_TF_COUNT=0
+CHECKOV_DOCKER_COUNT=0
+CHECKOV_JSON_COUNT=0
+CHECKOV_HELM_COUNT=0
+CHECKOV_SCAN_DURATION="N/A"
+if [ -f "$CHECKOV_STATS_FILE" ]; then
+    CHECKOV_FILES_SCANNED=$(jq -r '.files_scanned // 0' "$CHECKOV_STATS_FILE" 2>/dev/null || echo "0")
+    CHECKOV_YAML_COUNT=$(jq -r '.yaml_count // 0' "$CHECKOV_STATS_FILE" 2>/dev/null || echo "0")
+    CHECKOV_TF_COUNT=$(jq -r '.terraform_count // 0' "$CHECKOV_STATS_FILE" 2>/dev/null || echo "0")
+    CHECKOV_DOCKER_COUNT=$(jq -r '.dockerfile_count // 0' "$CHECKOV_STATS_FILE" 2>/dev/null || echo "0")
+    CHECKOV_JSON_COUNT=$(jq -r '.json_count // 0' "$CHECKOV_STATS_FILE" 2>/dev/null || echo "0")
+    CHECKOV_HELM_COUNT=$(jq -r '.helm_count // 0' "$CHECKOV_STATS_FILE" 2>/dev/null || echo "0")
+    CHECKOV_SCAN_DURATION=$(jq -r '.scan_duration // "N/A"' "$CHECKOV_STATS_FILE" 2>/dev/null || echo "N/A")
+fi
+
 # Build Checkov findings display
 if [ "$CHECKOV_TOTAL" -gt 0 ]; then
     CHECKOV_FINDINGS="<div class=\"stats-grid-small\">
@@ -643,9 +662,17 @@ if [ "$CHECKOV_TOTAL" -gt 0 ]; then
         <div class=\"stat-item\"><strong>❌ Failed:</strong> ${CHECKOV_FAILED}</div>
         <div class=\"stat-item\"><strong>⏭️ Skipped:</strong> ${CHECKOV_SKIPPED}</div>
         <div class=\"stat-item\"><strong>📊 Total Checks:</strong> ${CHECKOV_TOTAL}</div>
+        <div class=\"stat-item\"><strong>📁 Files Scanned:</strong> ${CHECKOV_FILES_SCANNED}</div>
+        <div class=\"stat-item\"><strong>⏱️ Scan Duration:</strong> ${CHECKOV_SCAN_DURATION}s</div>
     </div>"
+    if [ "$CHECKOV_FILES_SCANNED" -gt 0 ]; then
+        CHECKOV_FINDINGS="${CHECKOV_FINDINGS}<div style='margin-top:10px;padding:10px;background:#e0f2fe;border-left:3px solid #0369a1;'>"
+        CHECKOV_FINDINGS="${CHECKOV_FINDINGS}<strong>File Type Breakdown:</strong><br/>"
+        CHECKOV_FINDINGS="${CHECKOV_FINDINGS}📄 YAML/YML: ${CHECKOV_YAML_COUNT} | 🏗️ Terraform: ${CHECKOV_TF_COUNT} | 🐳 Dockerfiles: ${CHECKOV_DOCKER_COUNT} | 📋 JSON: ${CHECKOV_JSON_COUNT} | ⎈ Helm: ${CHECKOV_HELM_COUNT}"
+        CHECKOV_FINDINGS="${CHECKOV_FINDINGS}</div>"
+    fi
     if [ -n "$CHECKOV_CHECK_TYPES" ]; then
-        CHECKOV_FINDINGS="${CHECKOV_FINDINGS}<p style=\"margin-top: 10px; color: #718096;\">Check types: ${CHECKOV_CHECK_TYPES}</p>"
+        CHECKOV_FINDINGS="${CHECKOV_FINDINGS}<p style=\"margin-top: 10px; color: #718096;\">Frameworks: ${CHECKOV_CHECK_TYPES}</p>"
     fi
     
     # Add failed checks details if any failures exist
@@ -794,29 +821,136 @@ XEOL_MEDIUM=0
 XEOL_LOW=0
 XEOL_TOTAL_EOL=0
 XEOL_IMAGES_SCANNED=0
+XEOL_FILESYSTEM_PATHS=0
+XEOL_DB_VERSION="unknown"
+XEOL_SCAN_DURATION="N/A"
+XEOL_EOL_PACKAGES=""
 XEOL_FINDINGS=""
+
 if [ -d "$XEOL_DIR" ]; then
-    # Count actual JSON files (not symlinks)
-    XEOL_IMAGES_SCANNED=$(find "$XEOL_DIR" -name "*xeol-*.json" -type f 2>/dev/null | wc -l | tr -d ' \n' || echo "0")
-    [[ "$XEOL_IMAGES_SCANNED" =~ ^[0-9]+$ ]] || XEOL_IMAGES_SCANNED=0
-    
-    for xeol_file in "$XEOL_DIR"/*xeol-*.json; do
-        if [ -f "$xeol_file" ] && [ ! -L "$xeol_file" ]; then
-            eol_count=$(jq '.matches | length' "$xeol_file" 2>/dev/null || echo "0")
-            [[ "$eol_count" =~ ^[0-9]+$ ]] || eol_count=0
-            XEOL_TOTAL_EOL=$((XEOL_TOTAL_EOL + eol_count))
-            
-            # Count by severity (Xeol uses "Cycle" info, treat EOL as High)
-            if [ "$eol_count" -gt 0 ]; then
-                XEOL_HIGH=$((XEOL_HIGH + eol_count))
-            fi
-        fi
-    done
-    
-    if [ "$XEOL_TOTAL_EOL" -gt 0 ]; then
-        XEOL_FINDINGS="<p class=\"finding-item severity-high\" data-source=\"image\">⚠️ ${XEOL_TOTAL_EOL} end-of-life components detected across ${XEOL_IMAGES_SCANNED} scans (📦 Container Image)</p>"
+    # Try to read from statistics file first
+    XEOL_STATS_FILE="$XEOL_DIR/xeol-statistics.json"
+    if [ -f "$XEOL_STATS_FILE" ] && jq empty "$XEOL_STATS_FILE" 2>/dev/null; then
+        XEOL_IMAGES_SCANNED=$(jq -r '.base_images_scanned // 0' "$XEOL_STATS_FILE" 2>/dev/null || echo "0")
+        XEOL_FILESYSTEM_PATHS=$(jq -r '.filesystem_paths // 0' "$XEOL_STATS_FILE" 2>/dev/null || echo "0")
+        XEOL_TOTAL_EOL=$(jq -r '.eol_components_found // 0' "$XEOL_STATS_FILE" 2>/dev/null || echo "0")
+        XEOL_DB_VERSION=$(jq -r '.database_version // "unknown"' "$XEOL_STATS_FILE" 2>/dev/null || echo "unknown")
+        XEOL_SCAN_DURATION=$(jq -r '.scan_duration // "N/A"' "$XEOL_STATS_FILE" 2>/dev/null || echo "N/A")
+        # EOL packages is now a JSON array, convert to readable format
+        XEOL_EOL_PACKAGES=$(jq -r '.eol_packages[]? | "\(.name) \(.version)"' "$XEOL_STATS_FILE" 2>/dev/null | head -10 || echo "")
     else
-        XEOL_FINDINGS="<p class=\"no-findings\">✅ No end-of-life components detected (${XEOL_IMAGES_SCANNED} targets scanned)</p>"
+        # Fallback: Count actual JSON files (not symlinks)
+        XEOL_IMAGES_SCANNED=$(find "$XEOL_DIR" -name "*xeol-*.json" -type f 2>/dev/null | wc -l | tr -d ' \n' || echo "0")
+        [[ "$XEOL_IMAGES_SCANNED" =~ ^[0-9]+$ ]] || XEOL_IMAGES_SCANNED=0
+        
+        for xeol_file in "$XEOL_DIR"/*xeol-*.json; do
+            if [ -f "$xeol_file" ] && [ ! -L "$xeol_file" ]; then
+                eol_count=$(jq '.matches | length' "$xeol_file" 2>/dev/null || echo "0")
+                [[ "$eol_count" =~ ^[0-9]+$ ]] || eol_count=0
+                XEOL_TOTAL_EOL=$((XEOL_TOTAL_EOL + eol_count))
+                
+                # Collect package names
+                if [ "$eol_count" -gt 0 ]; then
+                    PKG_LIST=$(jq -r '.matches[]? | "\(.artifact.name) \(.artifact.version)"' "$xeol_file" 2>/dev/null | head -5)
+                    XEOL_EOL_PACKAGES="${XEOL_EOL_PACKAGES}${PKG_LIST}\n"
+                fi
+            fi
+        done
+    fi
+    
+    [[ "$XEOL_IMAGES_SCANNED" =~ ^[0-9]+$ ]] || XEOL_IMAGES_SCANNED=0
+    [[ "$XEOL_TOTAL_EOL" =~ ^[0-9]+$ ]] || XEOL_TOTAL_EOL=0
+    
+    # Count by severity (Xeol uses "Cycle" info, treat EOL as High)
+    if [ "$XEOL_TOTAL_EOL" -gt 0 ]; then
+        XEOL_HIGH=$XEOL_TOTAL_EOL
+    fi
+    
+    # Build detailed findings display with expandable EOL components
+    if [ "$XEOL_TOTAL_EOL" -gt 0 ]; then
+        XEOL_FINDINGS="<div class=\"findings-section\" style=\"margin-top: 15px;\">
+            <h4 style=\"color: #dd6b20; margin-bottom: 10px;\">⚰️ End-of-Life Components (${XEOL_TOTAL_EOL})</h4>
+            <p style=\"color:#718096;margin-bottom:15px;font-size:0.9em;\">👆 Click on any finding below to expand details. These components are no longer receiving security updates.</p>"
+        
+        # Extract detailed EOL findings from all Xeol JSON files
+        for xeol_file in "$XEOL_DIR"/*xeol-*.json; do
+            if [ -f "$xeol_file" ] && [ ! -L "$xeol_file" ]; then
+                # Get source info (image or filesystem)
+                SOURCE_TARGET=$(jq -r '.source.target // "unknown"' "$xeol_file" 2>/dev/null || echo "unknown")
+                SOURCE_TYPE=$(jq -r '.source.type // "unknown"' "$xeol_file" 2>/dev/null || echo "unknown")
+                
+                # Determine source badge
+                if [[ "$SOURCE_TYPE" == "image" ]] || [[ "$SOURCE_TARGET" == *":"* ]]; then
+                    SOURCE_BADGE="📦 Container Image"
+                    SOURCE_LABEL="image"
+                else
+                    SOURCE_BADGE="💻 Filesystem"
+                    SOURCE_LABEL="app"
+                fi
+                
+                # Extract each EOL match as TSV for easy parsing
+                while IFS=$'\t' read -r pkg_name pkg_version pkg_type eol_date cycle_eol location_path; do
+                    if [ -n "$pkg_name" ]; then
+                        # Escape HTML entities
+                        pkg_name_escaped=$(echo "$pkg_name" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
+                        pkg_version_escaped=$(echo "$pkg_version" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
+                        location_escaped=$(echo "$location_path" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
+                        
+                        # Format EOL date
+                        if [ "$eol_date" != "null" ] && [ -n "$eol_date" ]; then
+                            eol_display="EOL since $eol_date"
+                            eol_badge_color="#dc2626"
+                        else
+                            eol_display="End of Life"
+                            eol_badge_color="#ea580c"
+                        fi
+                        
+                        # Create finding item
+                        XEOL_FINDINGS="${XEOL_FINDINGS}
+<div class=\"finding-item severity-high\" data-source=\"${SOURCE_LABEL}\" onclick=\"toggleFindingDetails(this)\">
+    <div class=\"finding-header\">
+        <span class=\"badge badge-tool\">Xeol</span>
+        <span class=\"badge badge-high\">HIGH</span>
+        <span class=\"badge\" style=\"background:${eol_badge_color};color:white;\">⚰️ EOL</span>
+        <span class=\"badge\" style=\"background:#38a169;color:white;font-size:0.7em;\">${SOURCE_BADGE}</span>
+    </div>
+    <div class=\"finding-title\">${pkg_name_escaped} ${pkg_version_escaped}</div>
+    <div class=\"finding-desc\">${eol_display} - No longer receiving security updates</div>
+    <div class=\"finding-details\" style=\"display:none;\">
+        <div><strong>Package Name:</strong> <code>${pkg_name_escaped}</code></div>
+        <div><strong>Version:</strong> <code>${pkg_version_escaped}</code></div>
+        <div><strong>Package Type:</strong> ${pkg_type}</div>
+        <div><strong>EOL Status:</strong> <span style=\"color:#dc2626;font-weight:bold;\">${eol_display}</span></div>
+        <div><strong>Cycle EOL:</strong> ${cycle_eol}</div>
+        <div><strong>Source:</strong> ${SOURCE_BADGE}</div>
+        <div><strong>Target:</strong> <code style=\"font-size:0.8em;word-break:break-all;\">${SOURCE_TARGET}</code></div>
+        <div><strong>Location:</strong> <code style=\"font-size:0.8em;word-break:break-all;\">${location_escaped}</code></div>
+        <div style=\"margin-top:10px;padding:10px;background:#fef3c7;border-left:3px solid #f59e0b;\">
+            <strong>⚠️ Risk:</strong> This component is End-of-Life and no longer receives security patches or updates. 
+            Consider upgrading to a supported version or finding an alternative package.
+            <br/><br/>
+            <strong>📚 Resources:</strong><br/>
+            • Check <a href=\"https://endoflife.date/${pkg_name_escaped}\" target=\"_blank\" style=\"color:#0369a1;\">endoflife.date/${pkg_name_escaped}</a> for lifecycle information<br/>
+            • Review vendor documentation for migration paths
+        </div>
+    </div>
+</div>"
+                    fi
+                done < <(jq -r '.matches[]? | [
+                    .artifact.name // "unknown",
+                    .artifact.version // "unknown", 
+                    .artifact.type // "unknown",
+                    .eolDate // "null",
+                    .cycle.eol // "unknown",
+                    .artifact.locations[0].path // "N/A"
+                ] | @tsv' "$xeol_file" 2>/dev/null)
+            fi
+        done
+        
+        XEOL_FINDINGS="${XEOL_FINDINGS}
+        </div>"
+    else
+        XEOL_FINDINGS="<p class=\"no-findings\">✅ No end-of-life components detected</p>"
     fi
 else
     XEOL_FINDINGS="<p class=\"no-findings\">No Xeol data available</p>"
@@ -894,7 +1028,7 @@ cat > "$OUTPUT_HTML" << 'EOF'
         
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0F1F3D 0%, #1a2332 50%, #C41E3A 100%);
             min-height: 100vh;
             padding: 20px;
             color: #2d3748;
@@ -917,7 +1051,7 @@ cat > "$OUTPUT_HTML" << 'EOF'
         .header h1 {
             font-size: 2.8em;
             margin-bottom: 10px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #C41E3A 0%, #FFD700 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -1010,17 +1144,17 @@ cat > "$OUTPUT_HTML" << 'EOF'
             display: flex;
             justify-content: space-between;
             align-items: center;
-            background: linear-gradient(135deg, #f7fafc 0%, #edf2f7 100%);
-            border-bottom: 2px solid #e2e8f0;
+            background: linear-gradient(135deg, #e8eaed 0%, #d4d7db 100%);
+            border-bottom: 2px solid #2C3539;
             transition: all 0.3s ease;
         }
         
         .tool-header:hover {
-            background: linear-gradient(135deg, #edf2f7 0%, #e2e8f0 100%);
+            background: linear-gradient(135deg, #d4d7db 0%, #c1c5c9 100%);
         }
         
         .tool-header.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #C41E3A 0%, #0F1F3D 100%);
             color: white;
         }
         
@@ -1155,7 +1289,7 @@ cat > "$OUTPUT_HTML" << 'EOF'
         }
         
         .badge-tool {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #C41E3A 0%, #8B1328 100%);
             color: white;
         }
         
@@ -1282,15 +1416,15 @@ cat > "$OUTPUT_HTML" << 'EOF'
         }
         
         .stats-detail-box {
-            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
-            border: 1px solid #7dd3fc;
+            background: linear-gradient(135deg, #FFFBF0 0%, #FFF4E0 100%);
+            border: 1px solid #FFD700;
             border-radius: 12px;
             padding: 20px;
             margin-bottom: 20px;
         }
         
         .stats-detail-box h4 {
-            color: #0369a1;
+            color: #C41E3A;
             margin-bottom: 15px;
             font-size: 1.1em;
         }
@@ -1430,9 +1564,9 @@ cat > "$OUTPUT_HTML" << 'EOF'
         }
         
         .sbom-sort-btn.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #C41E3A 0%, #8B1328 100%);
             color: white;
-            border-color: #667eea;
+            border-color: #C41E3A;
         }
         
         .sbom-results-bar {
@@ -1521,8 +1655,8 @@ cat > "$OUTPUT_HTML" << 'EOF'
         
         .sbom-search-box input:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102,126,234,0.1);
+            border-color: #C41E3A;
+            box-shadow: 0 0 0 3px rgba(196,30,58,0.1);
         }
         
         .sbom-package-list {
@@ -1572,14 +1706,14 @@ cat > "$OUTPUT_HTML" << 'EOF'
         }
         
         .footer-link {
-            color: #667eea;
+            color: #C41E3A;
             text-decoration: none;
             font-weight: 600;
             transition: all 0.2s;
         }
         
         .footer-link:hover {
-            color: #764ba2;
+            color: #8B1328;
             text-decoration: underline;
         }
         
@@ -1723,9 +1857,9 @@ cat > "$OUTPUT_HTML" << 'EOF'
         }
         
         .sort-btn.active {
-            background: #667eea;
+            background: #C41E3A;
             color: white;
-            border-color: #667eea;
+            border-color: #C41E3A;
         }
         
         .filter-results {
@@ -1744,7 +1878,7 @@ cat > "$OUTPUT_HTML" << 'EOF'
         }
         
         .clear-filter {
-            color: #667eea;
+            color: #C41E3A;
             text-decoration: none;
             cursor: pointer;
             font-weight: 500;
@@ -1803,7 +1937,7 @@ cat >> "$OUTPUT_HTML" << EOF
         </div>
 
         <!-- Scan Overview Section -->
-        <div class="scan-overview" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 16px; padding: 24px; margin-bottom: 24px; color: white; box-shadow: 0 10px 40px rgba(102, 126, 234, 0.3);">
+        <div class="scan-overview" style="background: linear-gradient(135deg, #C41E3A 0%, #0F1F3D 100%); border-radius: 16px; padding: 24px; margin-bottom: 24px; color: white; box-shadow: 0 10px 40px rgba(196, 30, 58, 0.3);">
             <h2 style="margin: 0 0 16px 0; font-size: 1.4em; display: flex; align-items: center; gap: 10px;">
                 📊 Scan Overview
             </h2>
@@ -1972,7 +2106,7 @@ cat >> "$OUTPUT_HTML" << EOF
         </div>
         
         <!-- Source Legend -->
-        <div style="background: #f7fafc; border-radius: 8px; padding: 12px 16px; margin-top: 15px; margin-bottom: 15px; font-size: 0.85em; border-left: 4px solid #667eea;">
+        <div style="background: #f7fafc; border-radius: 8px; padding: 12px 16px; margin-top: 15px; margin-bottom: 15px; font-size: 0.85em; border-left: 4px solid #C41E3A;">
             <strong>📋 Understanding Vulnerability Sources:</strong>
             <div style="display: flex; flex-wrap: wrap; gap: 20px; margin-top: 8px;">
                 <div style="display: flex; align-items: center; gap: 6px;">
@@ -2308,8 +2442,12 @@ cat >> "$OUTPUT_HTML" << EOF
                         <div class="stats-detail-box">
                             <h4>📊 EOL Detection Statistics</h4>
                             <div class="stats-grid-small">
-                                <div class="stat-item"><strong>Images Scanned:</strong> ${XEOL_IMAGES_SCANNED}</div>
-                                <div class="stat-item"><strong>EOL Components:</strong> ${XEOL_TOTAL_EOL}</div>
+                                <div class="stat-item"><strong>🐳 Base Images Scanned:</strong> ${XEOL_IMAGES_SCANNED}</div>
+                                <div class="stat-item"><strong>📁 Filesystem Paths:</strong> ${XEOL_FILESYSTEM_PATHS}</div>
+                                <div class="stat-item"><strong>⚰️ EOL Components:</strong> ${XEOL_TOTAL_EOL}</div>
+                                <div class="stat-item"><strong>🗄️ Database Version:</strong> ${XEOL_DB_VERSION}</div>
+                                <div class="stat-item"><strong>⏱️ Scan Duration:</strong> ${XEOL_SCAN_DURATION}s</div>
+                                <div class="stat-item"><strong>📊 Data Source:</strong> endoflife.date</div>
                             </div>
                         </div>
                         ${XEOL_FINDINGS}

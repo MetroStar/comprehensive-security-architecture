@@ -48,7 +48,7 @@ show_help() {
     echo ""
     echo "Notes:"
     echo "  - Requires Docker to be installed and running"
-    echo "  - Uses xeol/xeol:latest Docker image"
+    echo "  - Uses noqcks/xeol:latest Docker image"
     echo "  - EOL dates sourced from endoflife.date"
     exit 0
 }
@@ -126,7 +126,7 @@ echo "This ensures we have the latest EOL data..."
 
 docker run --rm \
     -v "$XEOL_CACHE_VOL:/root/.cache" \
-    xeol/xeol:latest \
+    noqcks/xeol:latest \
     db update 2>&1 | tee -a "$SCAN_LOG"
 
 DB_UPDATE_RESULT=$?
@@ -141,7 +141,7 @@ fi
 echo -e "${CYAN}📋 Checking Xeol database status...${NC}"
 docker run --rm \
     -v "$XEOL_CACHE_VOL:/root/.cache" \
-    xeol/xeol:latest \
+    noqcks/xeol:latest \
     db status 2>&1 | tee -a "$SCAN_LOG"
 echo
 
@@ -162,7 +162,7 @@ scan_target() {
             docker run --rm \
                 -v "$target:/workspace:ro" \
                 -v "$XEOL_CACHE_VOL:/root/.cache" \
-                xeol/xeol:latest \
+                noqcks/xeol:latest \
                 dir:/workspace \
                 -o json 2>>"$SCAN_LOG" > "$full_output_path"
         else
@@ -170,7 +170,7 @@ scan_target() {
             docker run --rm \
                 -v /var/run/docker.sock:/var/run/docker.sock \
                 -v "$XEOL_CACHE_VOL:/root/.cache" \
-                xeol/xeol:latest \
+                noqcks/xeol:latest \
                 "docker:$target" \
                 -o json 2>>"$SCAN_LOG" > "$full_output_path"
         fi
@@ -243,12 +243,116 @@ if [ -d "$REPO_PATH" ]; then
     ln -sf "$output_file" "$OUTPUT_DIR/xeol-filesystem-results.json" 2>/dev/null
 fi
 
+# Calculate scan duration
+SCAN_END_TIME=$(date +%s)
+SCAN_DURATION=$((SCAN_END_TIME - $(date -j -f "%Y-%m-%d_%H-%M-%S" "$TIMESTAMP" "+%s" 2>/dev/null || date +%s)))
+
+# Count total EOL packages and collect statistics
+RESULTS_COUNT=$(find "$OUTPUT_DIR" -name "xeol-*-results.json" 2>/dev/null | wc -l)
+TOTAL_EOL=0
+PACKAGES_CHECKED=0
+
+for file in "$OUTPUT_DIR"/xeol-*-results.json; do
+    if [ -f "$file" ] && command -v jq &> /dev/null; then
+        EOL_COUNT=$(jq '[.matches[]?] | length' "$file" 2>/dev/null || echo 0)
+        TOTAL_EOL=$((TOTAL_EOL + EOL_COUNT))
+        # Try to count total packages checked (may not be in all output formats)
+        PKG_COUNT=$(jq '[.source.target?] | length' "$file" 2>/dev/null || echo 0)
+        PACKAGES_CHECKED=$((PACKAGES_CHECKED + PKG_COUNT))
+    fi
+done
+
+# Try to get Xeol database version
+DB_VERSION=$(docker run --rm noqcks/xeol:latest version 2>/dev/null | grep "Application" | awk '{print $2}' || echo "unknown")
+
+echo
+echo -e "${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${CYAN}║              ⚰️  XEOL END-OF-LIFE SCAN STATISTICS               ║${NC}"
+echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+
+# Scan targets
+printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${GREEN}%-30s${NC} ${CYAN}║${NC}\n" "Base Images Scanned:" "$IMAGES_SCANNED"
+FILESYSTEM_SCANNED=$([[ -d "$REPO_PATH" ]] && echo "1" || echo "0")
+printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${CYAN}%-30s${NC} ${CYAN}║${NC}\n" "Filesystem Paths:" "$FILESYSTEM_SCANNED"
+printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${BLUE}%-30s${NC} ${CYAN}║${NC}\n" "Total Scan Targets:" "$((IMAGES_SCANNED + FILESYSTEM_SCANNED))"
+
+echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+
+# EOL Detection Results
+printf "${CYAN}║${NC} ${WHITE}%-30s${NC} " "EOL Components Found:"
+if [ $TOTAL_EOL -gt 0 ]; then
+    printf "${RED}%-30s${NC} ${CYAN}║${NC}\n" "$TOTAL_EOL"
+else
+    printf "${GREEN}%-30s${NC} ${CYAN}║${NC}\n" "0 (Clean)"
+fi
+
+printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${CYAN}%-30s${NC} ${CYAN}║${NC}\n" "Result Files Generated:" "$RESULTS_COUNT"
+
+# Database info
+echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${PURPLE}%-30s${NC} ${CYAN}║${NC}\n" "Xeol Database Version:" "$DB_VERSION"
+printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${BLUE}%-30s${NC} ${CYAN}║${NC}\n" "EOL Data Source:" "endoflife.date"
+
+echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+printf "${CYAN}║${NC} ${WHITE}%-30s${NC} ${BLUE}%-30s${NC} ${CYAN}║${NC}\n" "Scan Duration:" "${SCAN_DURATION}s"
+
+echo -e "${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+
+# Status
+printf "${CYAN}║${NC} ${WHITE}%-30s${NC} " "EOL Status:"
+if [ $TOTAL_EOL -eq 0 ]; then
+    printf "${GREEN}%-30s${NC} ${CYAN}║${NC}\n" "✅ NO EOL DETECTED"
+else
+    printf "${YELLOW}%-30s${NC} ${CYAN}║${NC}\n" "⚠️  EOL FOUND"
+fi
+
+echo -e "${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+
+# Save statistics to JSON for dashboard and collect detailed EOL package info
+if command -v jq &> /dev/null; then
+    # Collect EOL package details as a JSON array
+    EOL_PACKAGES_JSON="[]"
+    for file in "$OUTPUT_DIR"/xeol-*-results.json; do
+        if [ -f "$file" ]; then
+            # Extract package details as JSON array
+            PKG_ARRAY=$(jq '[.matches[]? | {name: .artifact.name, version: .artifact.version, eol_date: (.eolDate // "unknown"), type: .artifact.type}]' "$file" 2>/dev/null || echo "[]")
+            if [ "$PKG_ARRAY" != "[]" ]; then
+                # Merge arrays
+                EOL_PACKAGES_JSON=$(jq -s 'add' <(echo "$EOL_PACKAGES_JSON") <(echo "$PKG_ARRAY") 2>/dev/null || echo "[]")
+            fi
+        fi
+    done
+    
+    # Create statistics file with proper JSON escaping
+    jq -n \
+        --arg base_images "$IMAGES_SCANNED" \
+        --arg fs_paths "$FILESYSTEM_SCANNED" \
+        --arg total_targets "$((IMAGES_SCANNED + FILESYSTEM_SCANNED))" \
+        --arg eol_found "$TOTAL_EOL" \
+        --arg result_files "$RESULTS_COUNT" \
+        --arg db_version "$DB_VERSION" \
+        --arg scan_duration "$SCAN_DURATION" \
+        --arg eol_status "$([[ $TOTAL_EOL -eq 0 ]] && echo "CLEAN" || echo "EOL_FOUND")" \
+        --argjson eol_packages "$EOL_PACKAGES_JSON" \
+        '{
+            base_images_scanned: ($base_images | tonumber),
+            filesystem_paths: ($fs_paths | tonumber),
+            total_targets: ($total_targets | tonumber),
+            eol_components_found: ($eol_found | tonumber),
+            result_files: ($result_files | tonumber),
+            database_version: $db_version,
+            data_source: "endoflife.date",
+            scan_duration: ($scan_duration | tonumber),
+            eol_status: $eol_status,
+            eol_packages: $eol_packages
+        }' > "$OUTPUT_DIR/xeol-statistics.json"
+fi
+
 echo
 echo -e "${CYAN}📊 Xeol End-of-Life Detection Summary${NC}"
 echo "===================================="
 echo -e "🐳 Base images scanned: $IMAGES_SCANNED"
 
-RESULTS_COUNT=$(find "$OUTPUT_DIR" -name "xeol-*-results.json" 2>/dev/null | wc -l)
 echo -e "⚰️  End-of-Life Package Summary:"
 if [ $RESULTS_COUNT -gt 0 ]; then
     echo -e "${YELLOW}⚠️  $RESULTS_COUNT result files found - review recommended${NC}"

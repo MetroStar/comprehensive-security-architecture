@@ -227,7 +227,7 @@ cat > "$OUTPUT_HTML" << 'HTMLEOF'
         
         body { 
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #0F1F3D 0%, #1a2332 50%, #C41E3A 100%);
             min-height: 100vh;
             padding: 20px;
             color: #2d3748;
@@ -250,7 +250,7 @@ cat > "$OUTPUT_HTML" << 'HTMLEOF'
         .header h1 {
             font-size: 2.8em;
             margin-bottom: 10px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #C41E3A 0%, #FFD700 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
@@ -332,7 +332,7 @@ cat > "$OUTPUT_HTML" << 'HTMLEOF'
         }
         
         .tool-header.active {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #C41E3A 0%, #0F1F3D 100%);
             color: white;
         }
         
@@ -447,7 +447,7 @@ cat > "$OUTPUT_HTML" << 'HTMLEOF'
         }
         
         .badge-tool {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #C41E3A 0%, #8B1328 100%);
             color: white;
         }
         
@@ -539,14 +539,14 @@ cat > "$OUTPUT_HTML" << 'HTMLEOF'
         }
         
         .footer-link {
-            color: #667eea;
+            color: #C41E3A;
             text-decoration: none;
             font-weight: 600;
             transition: all 0.2s;
         }
         
         .footer-link:hover {
-            color: #764ba2;
+            color: #8B1328;
             text-decoration: underline;
         }
         

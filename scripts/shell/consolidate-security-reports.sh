@@ -159,7 +159,7 @@ try:
     <title>$tool_name $scan_type Security Report</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background-color: #f5f5f5; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
+        .header { background: linear-gradient(135deg, #C41E3A 0%, #0F1F3D 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px; }
         .summary { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin-bottom: 20px; }
         .finding { background: white; margin: 10px 0; padding: 15px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .critical { border-left: 5px solid #dc3545; }
@@ -347,14 +347,28 @@ json_to_markdown() {
         return 1
     fi
     
-    python3 -c "
+    # Export variables for Python script
+    export MD_INPUT_FILE="$input_file"
+    export MD_OUTPUT_FILE="$output_file"
+    export MD_TOOL_NAME="$tool_name"
+    export MD_SCAN_TYPE="$scan_type"
+    export MD_REPORT_DATE="$REPORT_DATE"
+    
+    python3 << 'PYEOF'
 import json
 import sys
 from datetime import datetime
+import os
+
+input_file = os.getenv('MD_INPUT_FILE')
+output_file = os.getenv('MD_OUTPUT_FILE')
+tool_name = os.getenv('MD_TOOL_NAME')
+scan_type = os.getenv('MD_SCAN_TYPE')
+report_date = os.getenv('MD_REPORT_DATE')
 
 try:
     # Try to load as regular JSON first
-    with open('$input_file', 'r') as f:
+    with open(input_file, 'r') as f:
         content = f.read().strip()
         if not content:
             print('SKIP: Empty file', file=sys.stderr)
@@ -383,17 +397,17 @@ try:
                 print('SKIP: No valid JSON found', file=sys.stderr)
                 sys.exit(0)
     
-    md_content = f'''# $tool_name Security Report
+    md_content = f'''# {tool_name} Security Report
 
-**Scan Type:** $scan_type  
-**Generated:** $REPORT_DATE  
+**Scan Type:** {scan_type}  
+**Generated:** {report_date}  
 
 ## Summary
 
 '''
     
     # Process different tool formats for markdown
-    if '$tool_name' == 'Grype':
+    if tool_name == 'Grype':
         # Handle both dict and list formats
         if isinstance(data, dict):
             matches = data.get('matches', [])
@@ -433,7 +447,7 @@ try:
                 md_content += f'**Package:** {artifact.get("name", "Unknown")} @ {artifact.get("version", "Unknown")}  ' + chr(10)
                 md_content += f'**Description:** {desc}...  ' + chr(10) + chr(10)
     
-    elif '$tool_name' == 'TruffleHog':
+    elif tool_name == 'TruffleHog':
         if isinstance(data, list):
             secrets = data
         else:
@@ -467,19 +481,21 @@ try:
     else:
         # Generic format
         md_content += f'**Total Items:** {len(data) if isinstance(data, list) else 1}' + chr(10) + chr(10)
-        md_content += '\`\`\`json' + chr(10)
+        md_content += '```json' + chr(10)
         md_content += json.dumps(data, indent=2)[:2000]
-        md_content += chr(10) + '\`\`\`' + chr(10)
+        md_content += chr(10) + '```' + chr(10)
     
-    with open('$output_file', 'w') as f:
+    with open(output_file, 'w') as f:
         f.write(md_content)
     
-    print(f'✅ Generated Markdown report: $output_file')
+    print(f'✅ Generated Markdown report: {output_file}')
 
 except Exception as e:
     print(f'❌ Error generating Markdown report: {str(e)}', file=sys.stderr)
+    import traceback
+    traceback.print_exc(file=sys.stderr)
     sys.exit(1)
-" 2>/dev/null
+PYEOF
     local result=$?
     if [ $result -ne 0 ]; then
         # Only show error if it wasn't a skip (exit code 1 = error, 0 = skip or success)
@@ -568,7 +584,7 @@ if [ -f "$DASHBOARD_GENERATOR" ]; then
     <title>Security Dashboard</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; background-color: #f5f5f5; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+        .header { background: linear-gradient(135deg, #C41E3A 0%, #0F1F3D 100%); color: white; padding: 30px; text-align: center; }
         .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
         .message { background: white; padding: 30px; border-radius: 12px; text-align: center; }
     </style>
@@ -608,7 +624,7 @@ else
     <title>Security Dashboard</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 0; background-color: #f5f5f5; }
-        .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; }
+        .header { background: linear-gradient(135deg, #C41E3A 0%, #0F1F3D 100%); color: white; padding: 30px; text-align: center; }
         .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
         .message { background: white; padding: 30px; border-radius: 12px; text-align: center; }
     </style>
@@ -716,9 +732,9 @@ cat > "$UNIFIED_DIR/index.html" << EOF
         .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
         .header { text-align: center; margin-bottom: 30px; }
         .links { display: grid; gap: 15px; }
-        .link { display: block; padding: 15px; background: #007bff; color: white; text-decoration: none; border-radius: 6px; text-align: center; transition: background 0.3s; }
-        .link:hover { background: #0056b3; }
-        .dashboard-link { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); font-size: 18px; font-weight: bold; }
+        .link { display: block; padding: 15px; background: #0F1F3D; color: white; text-decoration: none; border-radius: 6px; text-align: center; transition: background 0.3s; }
+        .link:hover { background: #1a2332; }
+        .dashboard-link { background: linear-gradient(135deg, #C41E3A 0%, #8B1328 100%); font-size: 18px; font-weight: bold; }
     </style>
 </head>
 <body>
