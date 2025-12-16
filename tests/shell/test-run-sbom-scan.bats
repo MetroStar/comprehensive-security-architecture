@@ -37,5 +37,5 @@ SCRIPT_PATH="${SCRIPT_DIR}/run-sbom-scan.sh"
 }
 
 @test "run-sbom-scan.sh generates SBOM" {
-    grep -q "syft\|sbom" "$SCRIPT_PATH"
+    grep -q "syft" "$SCRIPT_PATH"
 }

@@ -37,5 +37,5 @@ SCRIPT_PATH="${SCRIPT_DIR}/run-clamav-scan.sh"
 }
 
 @test "run-clamav-scan.sh updates virus definitions" {
-    grep -q "freshclam\|update" "$SCRIPT_PATH"
+    grep -q "freshclam" "$SCRIPT_PATH"
 }
