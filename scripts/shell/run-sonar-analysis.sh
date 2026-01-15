@@ -23,7 +23,7 @@ show_help() {
     echo "  -h, --help          Show this help message and exit"
     echo ""
     echo "Environment Variables:"
-    echo "  SONAR_HOST_URL      SonarQube server URL (default: https://sonarqube.cdao.us)"
+    echo "  SONAR_HOST_URL      SonarQube server URL (e.g., https://sonarqube.example.com)"
     echo "  SONAR_TOKEN         Authentication token for SonarQube"
     echo "  SONAR_PROJECT_KEY   Project key in SonarQube"
     echo "  SONAR_PROJECT_NAME  Display name for the project"
@@ -120,8 +120,25 @@ if [ "$SONAR_CONFIG_FOUND" = false ]; then
   SONAR_CONFIG_SOURCE="none"
 fi
 
-# Default values (can be overridden by environment variables or sonar-project.properties)
-SONAR_HOST_URL="${SONAR_HOST_URL:-https://sonarqube.cdao.us}"
+# Default values (must be set via environment variables or sonar-project.properties)
+# No default URL - must be explicitly configured for your environment
+SONAR_HOST_URL="${SONAR_HOST_URL:-}"
+
+# Helper function to resolve environment variable references in property values
+# Handles ${env.VAR_NAME} syntax used in sonar-project.properties
+resolve_env_vars() {
+    local value="$1"
+    # Check if value contains ${env.VARIABLE_NAME} pattern
+    if [[ "$value" =~ \$\{env\.([A-Z_]+)\} ]]; then
+        local env_var="${BASH_REMATCH[1]}"
+        local env_value="${!env_var}"
+        if [ -n "$env_value" ]; then
+            # Replace ${env.VAR} with actual environment variable value
+            value="${value//\$\{env.${env_var}\}/${env_value}}"
+        fi
+    fi
+    echo "$value"
+}
 
 # Look for sonar-project.properties file in the target directory
 SONAR_PROPERTIES_FILES=(
@@ -139,13 +156,16 @@ for props_file in "${SONAR_PROPERTIES_FILES[@]}"; do
     echo "[OK] Found SonarQube properties: $props_file"
     # Extract project key from properties file
     PROJECT_KEY=$(grep -E "^sonar\.projectKey\s*=" "$props_file" | cut -d'=' -f2 | tr -d ' ' | tr -d '\n' 2>/dev/null)
-    # Extract host URL from properties file
+    # Extract host URL from properties file and resolve environment variables
     PROPS_HOST_URL=$(grep -E "^sonar\.host\.url\s*=" "$props_file" | cut -d'=' -f2 | tr -d ' ' | tr -d '\n' 2>/dev/null)
-    # Extract token from properties file (supports both sonar.token and sonar.login)
+    PROPS_HOST_URL=$(resolve_env_vars "$PROPS_HOST_URL")
+    # Extract token from properties file and resolve environment variables
     PROPS_TOKEN=$(grep -E "^sonar\.token\s*=" "$props_file" | grep -v '^#' | cut -d'=' -f2 | tr -d ' ' | tr -d '\n' 2>/dev/null)
+    PROPS_TOKEN=$(resolve_env_vars "$PROPS_TOKEN")
     if [ -z "$PROPS_TOKEN" ]; then
       # Fallback to sonar.login (legacy property name)
       PROPS_TOKEN=$(grep -E "^sonar\.login\s*=" "$props_file" | grep -v '^#' | cut -d'=' -f2 | tr -d ' ' | tr -d '\n' 2>/dev/null)
+      PROPS_TOKEN=$(resolve_env_vars "$PROPS_TOKEN")
     fi
     if [ -n "$PROJECT_KEY" ]; then
       echo "[INFO] Using project key from properties: $PROJECT_KEY"
@@ -238,8 +258,8 @@ if [ -z "$SONAR_TOKEN" ]; then
       echo ""
       echo "[AUTH] Enter SonarQube credentials:"
       echo "(will use defaults in 30 seconds if no input)"
-      read -t 30 -p "SonarQube Host URL (default: https://sonarqube.cdao.us): " INPUT_HOST_URL || true
-      SONAR_HOST_URL="${INPUT_HOST_URL:-https://sonarqube.cdao.us}"
+      read -t 30 -p "SonarQube Host URL (e.g., https://sonarqube.example.com): " INPUT_HOST_URL || true
+      SONAR_HOST_URL="${INPUT_HOST_URL:-}"
       
       echo -n "SonarQube Token: "
       read -s SONAR_TOKEN
@@ -274,7 +294,7 @@ if [ -z "$SONAR_TOKEN" ]; then
       echo ""
       echo "2. Create the file with:"
       echo "   export SONAR_TOKEN='your-token-here'"
-      echo "   export SONAR_HOST_URL='https://sonarqube.cdao.us'"
+      echo "   export SONAR_HOST_URL='https://sonarqube.example.com'  # Use your SonarQube instance URL"
       echo ""
       echo "3. Re-run the analysis"
       echo ""

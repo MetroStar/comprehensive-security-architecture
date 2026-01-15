@@ -71,7 +71,7 @@ else
   echo ""
   echo "Example content:"
   echo "  export SONAR_TOKEN='your-token-here'"
-  echo "  export SONAR_HOST_URL='https://sonarqube.cdao.us'"
+  echo "  export SONAR_HOST_URL='https://sonarqube.example.com'  # Use your SonarQube instance URL"
   echo "  export SONAR_PROJECT_KEY='your-project-key'"
   echo ""
   echo "Recommended location:"
